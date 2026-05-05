@@ -1,2 +1,5 @@
- [deploy]
+ [build]
+builder = "NIXPACKS"
+
+[deploy]
 startCommand = "gunicorn app:app"
