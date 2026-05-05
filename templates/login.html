@@ -1,20 +1,22 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <meta charset="UTF-8">
     <title>Login Médico</title>
 
     <style>
         body {
             font-family: Arial;
-            background: #007bff;
+            background: #0f172a;
+            color: white;
             display: flex;
+            height: 100vh;
             justify-content: center;
             align-items: center;
-            height: 100vh;
         }
 
-        .login {
-            background: white;
+        .box {
+            background: #1e293b;
             padding: 30px;
             border-radius: 10px;
             width: 300px;
@@ -24,27 +26,44 @@
             width: 100%;
             padding: 10px;
             margin: 10px 0;
+            border: none;
+            border-radius: 5px;
         }
 
         button {
             width: 100%;
             padding: 10px;
-            background: #007bff;
-            color: white;
+            background: #22c55e;
             border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .error {
+            color: #f87171;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 
 <body>
 
-<div class="login">
+<div class="box">
     <h2>Login Médico</h2>
 
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+
     <form method="POST">
-        <input name="user" placeholder="Usuario">
-        <input name="password" type="password" placeholder="Contraseña">
-        <button>Ingresar</button>
+
+        <input type="text" name="usuario" placeholder="Usuario" required>
+
+        <input type="password" name="password" placeholder="Contraseña" required>
+
+        <button type="submit">Ingresar</button>
+
     </form>
 </div>
 
