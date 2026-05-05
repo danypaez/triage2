@@ -379,7 +379,7 @@ def usuarios():
 # =========================
 @app.route("/")
 def home():
-    return redirect("/login")
+    return render_template("index.html")
 
 # =========================
 # RUN
