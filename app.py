@@ -2,13 +2,36 @@ import os
 import sqlite3
 import json
 from datetime import datetime, timedelta, time
-from flask import Flask, render_template, request, jsonify, session
+from functools import wraps
+
+from flask import Flask, render_template, request, jsonify, session, redirect
+from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
+
+# =========================
+# CONFIG
+# =========================
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = "clave_secreta_super_segura"
 
 DB = "turnos.db"
+
+# =========================
+# USUARIOS
+# =========================
+USERS = {
+    "admin": "1234"
+}
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user" not in session:
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return decorated
 
 # =========================
 # INIT DB
@@ -81,14 +104,14 @@ def generar_turnos(especialidad):
 
     doctores = {
         "clínica médica": ["Dr. Juan Pérez", "Dr. Esteban López"],
-        "dermatología": ["Dr. Juan Pérez"],
-        "traumatología": ["Dr. Esteban López"],
-        "ginecología": ["Dra. María López"],
-        "oftalmología": ["Dr. Carlos Díaz"],
-        "odontología": ["Dra. Laura Gómez"]
+        "ginecología": ["Dra. María Gómez"],
+        "traumatología": ["Dr. Carlos Ruiz"],
+        "dermatología": ["Dra. Laura Díaz"],
+        "oftalmología": ["Dr. Andrés Vega"],
+        "odontología": ["Dr. Martín Silva"]
     }
 
-    lista = doctores.get(especialidad.lower(), ["Dr. Juan Pérez"])
+    lista = doctores.get(especialidad.lower(), ["Dr. General"])
 
     hoy = datetime.now()
     resultado = []
@@ -107,13 +130,13 @@ def generar_turnos(especialidad):
         if disponibles:
             resultado.append({
                 "doctor": doctor,
-                "turnos": disponibles[:2]
+                "turnos": disponibles[:3]
             })
 
     return resultado
 
 # =========================
-# TRIAGE (SIN IA EXTERNA)
+# TRIAGE IA
 # =========================
 def triage(texto):
 
@@ -125,170 +148,85 @@ def triage(texto):
         prompt = f"""
 Sos un sistema de TRIAGE MÉDICO.
 
-Tu tarea es CLASIFICAR los síntomas en UNA sola especialidad médica.
+Clasificá los síntomas en UNA especialidad:
 
-⚠️ IMPORTANTE:
-- NO usar "clínica médica" si hay una especialidad más específica
-- SOLO usar clínica médica si es algo general o ambiguo
+- clínica médica
+- traumatología
+- ginecología
+- dermatología
+- oftalmología
+- odontología
 
-ESPECIALIDADES:
-
-- clínica médica → fiebre, malestar general, gripe, cansancio, síntomas difusos
-- traumatología → golpes, caídas, dolor muscular, huesos, articulaciones
-- ginecología → flujo vaginal, dolor pélvico, menstruación, embarazo, sangrado vaginal, infecciones íntimas
-- dermatología → manchas, erupciones, picazón, acné, problemas en piel
-- oftalmología → visión borrosa, dolor ocular, irritación en ojos
-- odontología → dolor de muelas, encías, infecciones dentales
+REGLAS:
+- Usar la especialidad MÁS específica posible
+- NO usar clínica médica si hay otra opción clara
 
 URGENCIA:
-- ALTA → riesgo inmediato (dolor intenso, sangrado fuerte, dificultad respiratoria, desmayo)
-- MEDIA → requiere consulta pronta
-- BAJA → leve o controlable
+BAJA, MEDIA o ALTA
 
-⚠️ REGLAS:
-- Elegir SIEMPRE la especialidad MÁS específica posible
-- NO repetir especialidades incorrectas
-- NO inventar texto fuera del JSON
-
-DEVOLVER SOLO JSON:
+Devolver SOLO JSON:
 
 {{
-  "urgencia": "BAJA | MEDIA | ALTA",
+  "urgencia": "...",
   "especialidad": "...",
-  "recomendaciones": [
-    "...",
-    "...",
-    "...",
-    "...",
-    "..."
-  ]
+  "recomendaciones": ["...", "...", "...", "...", "..."]
 }}
-
-RECOMENDACIONES:
-- Deben ser prácticas, claras y seguras
-- Máximo 5
-- No repetir
-- No cosas obvias genéricas
 
 Síntomas:
 {texto}
 """
 
-        response = genai.GenerativeModel("gemini-1.5-flash").generate_content(prompt)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
 
         raw = response.text.strip()
-
-        # Limpieza por si viene con ```json
         raw = raw.replace("```json", "").replace("```", "").strip()
 
-        data = json.loads(raw)
-
-        return data
+        return json.loads(raw)
 
     except Exception as e:
-        print("⚠️ Error IA, usando fallback:", e)
+        print("⚠️ Error IA:", e)
 
-        # =========================
-        # FALLBACK MEJORADO
-        # =========================
         t = texto.lower()
 
-        # 🚨 URGENCIAS
-        if "no puedo respirar" in t or "dolor en el pecho" in t:
-            return {
-                "urgencia": "ALTA",
-                "especialidad": "clínica médica",
-                "recomendaciones": [
-                    "Acudir inmediatamente a una guardia médica",
-                    "No quedarse solo",
-                    "Evitar cualquier esfuerzo físico",
-                    "Mantenerse sentado o semi incorporado",
-                    "Llamar a emergencias"
-                ]
-            }
-
-        # 👩 GINECOLOGÍA
-        if any(x in t for x in ["flujo", "vaginal", "menstru", "embarazo", "ovario", "útero", "pélvico"]):
+        if any(x in t for x in ["flujo", "vaginal", "menstru", "embarazo", "pélvico"]):
             return {
                 "urgencia": "MEDIA",
                 "especialidad": "ginecología",
                 "recomendaciones": [
-                    "Evitar relaciones sexuales hasta evaluación médica",
-                    "Mantener higiene íntima adecuada",
+                    "Evitar relaciones sexuales",
+                    "Mantener higiene íntima",
                     "No automedicarse",
-                    "Registrar síntomas y duración",
-                    "Consultar con especialista lo antes posible"
-                ]
-            }
-
-        # 🦴 TRAUMATOLOGÍA
-        if any(x in t for x in ["golpe", "caída", "dolor muscular", "hueso", "torcedura"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "traumatología",
-                "recomendaciones": [
-                    "Aplicar frío en la zona afectada",
-                    "Evitar movimientos bruscos",
-                    "Mantener reposo",
-                    "Elevar la zona si hay inflamación",
-                    "Consultar si el dolor persiste"
-                ]
-            }
-
-        # 🧴 DERMATOLOGÍA
-        if any(x in t for x in ["piel", "mancha", "sarpullido", "picazón"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "dermatología",
-                "recomendaciones": [
-                    "Evitar exposición al sol",
-                    "No rascar la zona afectada",
-                    "Mantener la piel limpia y seca",
-                    "Usar ropa suelta",
-                    "Consultar si empeora"
-                ]
-            }
-
-        # 👁 OFTALMOLOGÍA
-        if any(x in t for x in ["ojo", "visión", "lagrimeo", "ardor ocular"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "oftalmología",
-                "recomendaciones": [
-                    "Evitar frotarse los ojos",
-                    "Descansar la vista",
-                    "Evitar pantallas",
-                    "Usar lágrimas artificiales si es necesario",
+                    "Registrar síntomas",
                     "Consultar especialista"
                 ]
             }
 
-        # 🦷 ODONTOLOGÍA
-        if any(x in t for x in ["muela", "diente", "encía"]):
+        if any(x in t for x in ["golpe", "caída", "muscular"]):
             return {
                 "urgencia": "MEDIA",
-                "especialidad": "odontología",
+                "especialidad": "traumatología",
                 "recomendaciones": [
-                    "Evitar alimentos muy fríos o calientes",
-                    "Mantener higiene bucal",
-                    "No masticar del lado afectado",
-                    "Usar analgésico si es necesario",
-                    "Consultar odontólogo"
+                    "Aplicar frío",
+                    "Reposo",
+                    "Evitar esfuerzo",
+                    "Elevar zona",
+                    "Consultar si persiste"
                 ]
             }
 
-        # 🏥 DEFAULT
         return {
             "urgencia": "BAJA",
             "especialidad": "clínica médica",
             "recomendaciones": [
-                "Descansar adecuadamente",
-                "Mantenerse hidratado",
-                "Controlar evolución de síntomas",
+                "Descansar",
+                "Hidratarse",
+                "Controlar síntomas",
                 "Evitar automedicación",
-                "Consultar si no mejora"
+                "Consultar si empeora"
             ]
         }
+
 # =========================
 # GUARDAR TURNO
 # =========================
@@ -347,6 +285,43 @@ scheduler.start()
 def index():
     return render_template("index.html")
 
+# LOGIN
+@app.route("/login")
+def login():
+    return render_template("login.html")
+
+@app.route("/login", methods=["POST"])
+def login_post():
+    user = request.form.get("user")
+    password = request.form.get("password")
+
+    if USERS.get(user) == password:
+        session["user"] = user
+        return redirect("/calendario")
+
+    return render_template("login.html", error="Credenciales incorrectas")
+
+@app.route("/logout")
+def logout():
+    session.pop("user", None)
+    return redirect("/login")
+
+# CALENDARIO
+@app.route("/calendario")
+@login_required
+def calendario():
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    c.execute("SELECT nombre, doctor, fecha FROM turnos ORDER BY fecha ASC")
+    turnos = c.fetchall()
+
+    conn.close()
+
+    return render_template("calendario.html", turnos=turnos)
+
+# TRIAGE
 @app.route("/triage", methods=["POST"])
 def triage_route():
 
@@ -370,10 +345,14 @@ def triage_route():
         "recomendaciones": data["recomendaciones"]
     })
 
+# CONFIRMAR
 @app.route("/confirmar", methods=["POST"])
 def confirmar():
     ok = guardar_turno(request.json)
     return jsonify({"ok": ok})
 
+# =========================
+# RUN LOCAL
+# =========================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    app.run(debug=True)
