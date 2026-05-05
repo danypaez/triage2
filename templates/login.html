@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Login Médico</title>
+
+<style>
+body {
+    font-family: Arial;
+    background: #0f1720;
+    color: white;
+    text-align: center;
+    padding-top: 100px;
+}
+
+input {
+    padding: 10px;
+    margin: 10px;
+    border-radius: 8px;
+    border: none;
+}
+
+button {
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    background: #00c6ff;
+    color: white;
+}
+</style>
+</head>
+
+<body>
+
+<h2>👨‍⚕️ Login Médico</h2>
+
+<input id="user" placeholder="Usuario">
+<input id="pass" type="password" placeholder="Contraseña">
+
+<br>
+<button onclick="login()">Ingresar</button>
+
+<script>
+async function login(){
+
+    const res = await fetch("/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            usuario: document.getElementById("user").value,
+            password: document.getElementById("pass").value
+        })
+    });
+
+    const data = await res.json();
+
+    if(data.ok){
+        window.location = "/panel";
+    } else {
+        alert("Credenciales incorrectas");
+    }
+}
+</script>
+
+</body>
+</html>
+
+
