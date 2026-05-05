@@ -1,4 +1,5 @@
 Flask
 gunicorn
-apscheduler
+python-dotenv
 google-generativeai
+apscheduler
