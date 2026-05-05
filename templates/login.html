@@ -1,71 +1,29 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Login Médico</title>
-
-    <style>
-        body {
-            font-family: Arial;
-            background: #0f172a;
-            color: white;
-            display: flex;
-            height: 100vh;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .box {
-            background: #1e293b;
-            padding: 30px;
-            border-radius: 10px;
-            width: 300px;
-        }
-
-        input {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border: none;
-            border-radius: 5px;
-        }
-
-        button {
-            width: 100%;
-            padding: 10px;
-            background: #22c55e;
-            border: none;
-            color: white;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-
-        .error {
-            color: #f87171;
-            margin-bottom: 10px;
-        }
-    </style>
+<title>Login</title>
+<style>
+body {background:#0f172a;color:white;font-family:Arial;display:flex;justify-content:center;align-items:center;height:100vh;}
+.box {background:#1e293b;padding:30px;border-radius:10px;width:300px;}
+input,button{width:100%;padding:10px;margin:10px 0;border-radius:5px;border:none;}
+button{background:#22c55e;color:white;}
+.error{color:red;}
+</style>
 </head>
-
 <body>
-
 <div class="box">
-    <h2>Login Médico</h2>
+<h2>Login</h2>
 
-    {% if error %}
-        <div class="error">{{ error }}</div>
-    {% endif %}
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
 
-    <form method="POST">
+<form method="POST">
+<input name="usuario" placeholder="Usuario">
+<input name="password" type="password" placeholder="Contraseña">
+<button>Ingresar</button>
+</form>
 
-        <input type="text" name="usuario" placeholder="Usuario" required>
-
-        <input type="password" name="password" placeholder="Contraseña" required>
-
-        <button type="submit">Ingresar</button>
-
-    </form>
 </div>
-
 </body>
 </html>
