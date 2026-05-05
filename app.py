@@ -385,20 +385,30 @@ def calendario():
     c = conn.cursor()
 
     if doctor:
-        c.execute("SELECT nombre, doctor, fecha FROM turnos WHERE doctor=?", (doctor,))
+        c.execute("""
+        SELECT nombre, dni, sintomas, doctor, fecha 
+        FROM turnos 
+        WHERE doctor=?
+        """, (doctor,))
     else:
-        c.execute("SELECT nombre, doctor, fecha FROM turnos")
+        c.execute("""
+        SELECT nombre, dni, sintomas, doctor, fecha 
+        FROM turnos
+        """)
 
     turnos = c.fetchall()
 
-    # obtener lista de médicos únicos
     c.execute("SELECT DISTINCT doctor FROM turnos")
     medicos = [m[0] for m in c.fetchall()]
 
     conn.close()
 
-    return render_template("calendario.html", turnos=turnos, medicos=medicos, doctor_actual=doctor)
-
+    return render_template(
+        "calendario.html",
+        turnos=turnos,
+        medicos=medicos,
+        doctor_actual=doctor
+    )
 # =========================
 # HOME
 # =========================
