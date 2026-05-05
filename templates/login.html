@@ -1,75 +1,50 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Login</title>
+    <title>Login Médico</title>
 
     <style>
         body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #4facfe, #00f2fe);
-            height: 100vh;
+            font-family: Arial;
+            background: #007bff;
             display: flex;
             justify-content: center;
             align-items: center;
+            height: 100vh;
         }
 
-        .login-box {
+        .login {
             background: white;
-            padding: 40px;
-            border-radius: 12px;
-            width: 320px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            text-align: center;
-        }
-
-        h2 {
-            margin-bottom: 20px;
+            padding: 30px;
+            border-radius: 10px;
+            width: 300px;
         }
 
         input {
             width: 100%;
-            padding: 12px;
+            padding: 10px;
             margin: 10px 0;
-            border-radius: 8px;
-            border: 1px solid #ccc;
-            outline: none;
-            transition: 0.3s;
-        }
-
-        input:focus {
-            border-color: #4facfe;
-            box-shadow: 0 0 5px rgba(79,172,254,0.5);
         }
 
         button {
             width: 100%;
-            padding: 12px;
-            background: #4facfe;
-            border: none;
+            padding: 10px;
+            background: #007bff;
             color: white;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-
-        button:hover {
-            background: #3a8de0;
+            border: none;
         }
     </style>
 </head>
 
 <body>
 
-<div class="login-box">
-    <h2>Ingreso</h2>
+<div class="login">
+    <h2>Login Médico</h2>
 
-    <form method="POST" action="/login">
-        <input type="text" name="usuario" placeholder="Usuario" required>
-        <input type="password" name="password" placeholder="Contraseña" required>
-        <button type="submit">Ingresar</button>
+    <form method="POST">
+        <input name="user" placeholder="Usuario">
+        <input name="password" type="password" placeholder="Contraseña">
+        <button>Ingresar</button>
     </form>
 </div>
 
