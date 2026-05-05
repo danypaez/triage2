@@ -1,20 +1,15 @@
 import os
 import sqlite3
 import json
-from datetime import datetime, timedelta, time
-from flask import Flask, render_template, request, jsonify, session, redirect
-from werkzeug.security import generate_password_hash, check_password_hash
+from flask import Flask, render_template, request, jsonify
 
-# =========================
-# CONFIG
-# =========================
 app = Flask(__name__)
-app.secret_key = "super_secret_key_123"
+app.secret_key = "clave_secreta"
 
 DB = "turnos.db"
 
 # =========================
-# DB INIT
+# DB
 # =========================
 def init_db():
     conn = sqlite3.connect(DB)
@@ -38,239 +33,149 @@ def init_db():
 init_db()
 
 # =========================
-# TRIAGE (IA + FALLBACK PRO)
+# TRIAGE
 # =========================
 def triage(texto):
 
-    texto_lower = texto.lower()
+    t = texto.lower()
 
-    # =========================
-    # FALLBACK INTELIGENTE (MUY COMPLETO)
-    # =========================
-    def fallback():
-        t = texto_lower
-
-        # 🔴 URGENCIAS
-        if any(x in t for x in ["infarto", "no puedo respirar", "dolor pecho fuerte", "convulsión"]):
-            return {
-                "urgencia": "ALTA",
-                "especialidad": "cardiología",
-                "recomendaciones": [
-                    "Acudir inmediatamente a una guardia",
-                    "No realizar esfuerzos",
-                    "Llamar a emergencias",
-                    "Permanecer acompañado",
-                    "Mantener calma"
-                ]
-            }
-
-        # ❤️ CARDIOLOGÍA
-        if any(x in t for x in ["presión alta", "palpitaciones", "dolor pecho leve"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "cardiología",
-                "recomendaciones": [
-                    "Evitar esfuerzo físico",
-                    "Reducir consumo de sal",
-                    "Controlar presión",
-                    "No fumar",
-                    "Consultar cardiólogo"
-                ]
-            }
-
-        # 🤰 GINECOLOGÍA / OBSTETRICIA
-        if any(x in t for x in ["embarazo", "flujo", "dolor ovárico", "menstruación", "sangrado vaginal"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "ginecología",
-                "recomendaciones": [
-                    "Evitar relaciones sexuales",
-                    "Controlar sangrado",
-                    "No automedicarse",
-                    "Usar protección higiénica",
-                    "Consultar especialista"
-                ]
-            }
-
-        # 🦴 TRAUMATOLOGÍA
-        if any(x in t for x in ["golpe", "fractura", "esguince", "dolor rodilla", "dolor muscular"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "traumatología",
-                "recomendaciones": [
-                    "Reposo",
-                    "Aplicar hielo",
-                    "Inmovilizar zona",
-                    "Evitar esfuerzo",
-                    "Elevar miembro afectado"
-                ]
-            }
-
-        # 🧴 DERMATOLOGÍA
-        if any(x in t for x in ["piel", "manchas", "erupción", "sarpullido", "picazón"]):
-            return {
-                "urgencia": "BAJA",
-                "especialidad": "dermatología",
-                "recomendaciones": [
-                    "No rascarse",
-                    "Evitar sol",
-                    "Mantener higiene",
-                    "Usar crema neutra",
-                    "Consultar dermatólogo"
-                ]
-            }
-
-        # 👁️ OFTALMOLOGÍA
-        if any(x in t for x in ["visión", "ojo", "lagrimeo", "ardor ocular"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "oftalmología",
-                "recomendaciones": [
-                    "Evitar pantallas",
-                    "No frotar ojos",
-                    "Usar lágrimas artificiales",
-                    "Descansar vista",
-                    "Consultar oftalmólogo"
-                ]
-            }
-
-        # 🦷 ODONTOLOGÍA
-        if any(x in t for x in ["muela", "diente", "encía", "dolor dental"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "odontología",
-                "recomendaciones": [
-                    "Evitar alimentos duros",
-                    "Mantener higiene bucal",
-                    "No automedicarse",
-                    "Usar enjuague",
-                    "Consultar odontólogo"
-                ]
-            }
-
-        # 🍔 GASTROENTEROLOGÍA
-        if any(x in t for x in ["estómago", "náuseas", "vómitos", "diarrea"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "gastroenterología",
-                "recomendaciones": [
-                    "Dieta liviana",
-                    "Hidratación constante",
-                    "Evitar grasas",
-                    "Reposo",
-                    "Consultar gastroenterólogo"
-                ]
-            }
-
-        # 🧠 NEUROLOGÍA
-        if any(x in t for x in ["mareos", "desmayo", "dolor cabeza fuerte", "migraña"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "neurología",
-                "recomendaciones": [
-                    "Reposo en lugar oscuro",
-                    "Evitar ruido",
-                    "Hidratarse",
-                    "No usar pantallas",
-                    "Consultar neurólogo"
-                ]
-            }
-
-        # 🧍 CLÍNICA GENERAL
+    # 🔴 URGENCIAS
+    if any(x in t for x in ["infarto", "no puedo respirar", "dolor pecho fuerte"]):
         return {
-            "urgencia": "BAJA",
-            "especialidad": "clínica médica",
+            "urgencia": "ALTA",
+            "especialidad": "cardiología",
             "recomendaciones": [
-                "Descansar",
-                "Hidratarse",
-                "Alimentación liviana",
-                "Controlar síntomas",
-                "Consultar médico"
+                "Ir a guardia urgente",
+                "No hacer esfuerzo",
+                "Llamar emergencias",
+                "No quedarse solo",
+                "Mantener calma"
             ]
         }
 
-    # =========================
-    # INTENTO IA (SIN BLOQUEAR)
-    # =========================
-    try:
-        import google.generativeai as genai
+    # ❤️ CARDIO
+    if any(x in t for x in ["presión alta", "palpitaciones"]):
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "cardiología",
+            "recomendaciones": [
+                "Reducir sal",
+                "Controlar presión",
+                "Evitar esfuerzo",
+                "No fumar",
+                "Consultar cardiólogo"
+            ]
+        }
 
-        api_key = os.getenv("GEMINI_API_KEY")
+    # 🤰 GINECOLOGÍA
+    if any(x in t for x in ["flujo", "menstruación", "sangrado vaginal", "dolor ovárico"]):
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "ginecología",
+            "recomendaciones": [
+                "Evitar relaciones",
+                "Controlar sangrado",
+                "No automedicarse",
+                "Higiene adecuada",
+                "Consultar ginecólogo"
+            ]
+        }
 
-        if not api_key:
-            print("⚠️ No hay API KEY, usando fallback")
-            return fallback()
+    # 🦴 TRAUMA
+    if any(x in t for x in ["golpe", "fractura", "esguince", "dolor muscular"]):
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "traumatología",
+            "recomendaciones": [
+                "Reposo",
+                "Hielo",
+                "Inmovilizar",
+                "Elevar zona",
+                "Evitar esfuerzo"
+            ]
+        }
 
-        genai.configure(api_key=api_key)
+    # 🧴 PIEL
+    if any(x in t for x in ["piel", "mancha", "sarpullido"]):
+        return {
+            "urgencia": "BAJA",
+            "especialidad": "dermatología",
+            "recomendaciones": [
+                "No rascarse",
+                "Evitar sol",
+                "Higiene",
+                "Usar crema neutra",
+                "Consultar dermatólogo"
+            ]
+        }
 
-        model = genai.GenerativeModel("gemini-1.5-flash")
+    # 👁️ OJOS
+    if any(x in t for x in ["ojo", "visión", "ardor ocular"]):
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "oftalmología",
+            "recomendaciones": [
+                "No frotar",
+                "Evitar pantallas",
+                "Usar lágrimas",
+                "Descansar vista",
+                "Consultar oftalmólogo"
+            ]
+        }
 
-        prompt = f"""
-Clasificá síntomas médicos en especialidad correcta.
+    # 🦷 DIENTES
+    if any(x in t for x in ["diente", "muela", "encía"]):
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "odontología",
+            "recomendaciones": [
+                "Higiene bucal",
+                "Evitar frío/calor",
+                "No automedicarse",
+                "Enjuague",
+                "Consultar odontólogo"
+            ]
+        }
 
-ES OBLIGATORIO:
-- Elegir SOLO UNA especialidad
-- NO usar siempre clínica médica
-- Analizar síntomas con precisión
+    # 🍔 GASTRO
+    if any(x in t for x in ["estómago", "náuseas", "vómitos", "diarrea"]):
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "gastroenterología",
+            "recomendaciones": [
+                "Dieta liviana",
+                "Hidratación",
+                "Evitar grasas",
+                "Reposo",
+                "Consultar gastro"
+            ]
+        }
 
-Especialidades:
-cardiología, neurología, ginecología, obstetricia, traumatología,
-dermatología, oftalmología, odontología, gastroenterología,
-nefrología, urología, endocrinología, pediatría, clínica médica
+    # 🧠 NEURO
+    if any(x in t for x in ["mareo", "migraña", "dolor cabeza"]):
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "neurología",
+            "recomendaciones": [
+                "Reposo",
+                "Oscuridad",
+                "Evitar ruido",
+                "Hidratación",
+                "Consultar neurólogo"
+            ]
+        }
 
-Urgencia: BAJA, MEDIA, ALTA
-
-Dar EXACTAMENTE 5 recomendaciones.
-
-Responder SOLO JSON:
-
-{{
- "urgencia": "",
- "especialidad": "",
- "recomendaciones": []
-}}
-
-Síntomas:
-{texto}
-"""
-
-        response = model.generate_content(prompt)
-
-        raw = response.text.strip()
-
-        data = json.loads(raw)
-
-        # validación mínima
-        if "especialidad" not in data:
-            return fallback()
-
-        return data
-
-    except Exception as e:
-        print("⚠️ ERROR IA:", e)
-        return fallback()
-
-# =========================
-# TURNOS
-# =========================
-def guardar_turno(data):
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    c.execute("""
-    INSERT INTO turnos (nombre, dni, sintomas, especialidad, doctor, fecha)
-    VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        data["nombre"],
-        data["dni"],
-        data["sintomas"],
-        data["especialidad"],
-        data["doctor"],
-        data["fecha"]
-    ))
-
-    conn.commit()
-    conn.close()
+    return {
+        "urgencia": "BAJA",
+        "especialidad": "clínica médica",
+        "recomendaciones": [
+            "Descansar",
+            "Hidratarse",
+            "Comer liviano",
+            "Controlar síntomas",
+            "Consultar médico"
+        ]
+    }
 
 # =========================
 # ROUTES
@@ -281,21 +186,10 @@ def index():
 
 @app.route("/triage", methods=["POST"])
 def triage_route():
-
-    texto = request.json.get("texto")
-
-    print("📥 Síntomas:", texto)
-
-    data = triage(texto)
-
-    print("📤 Resultado:", data)
-
-    return jsonify(data)
-
-@app.route("/confirmar", methods=["POST"])
-def confirmar():
-    guardar_turno(request.json)
-    return jsonify({"ok": True})
+    data = request.json
+    texto = data.get("texto", "")
+    resultado = triage(texto)
+    return jsonify(resultado)
 
 # =========================
 # RUN
