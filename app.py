@@ -352,6 +352,65 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(recordar_turnos, 'interval', hours=1)
 scheduler.start()
 
+
+# =========================
+# EDITAR TURNO
+# =========================
+@app.route("/editar_turno", methods=["POST"])
+def editar_turno():
+    data = request.json
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    try:
+        c.execute("""
+        UPDATE turnos
+        SET nombre=?, dni=?, sintomas=?, especialidad=?, doctor=?, fecha=?
+        WHERE id=?
+        """, (
+            data["nombre"],
+            data["dni"],
+            data["sintomas"],
+            data["especialidad"],
+            data["doctor"],
+            data["fecha"],
+            data["id"]
+        ))
+
+        conn.commit()
+        ok = True
+    except Exception as e:
+        print("Error editando:", e)
+        ok = False
+
+    conn.close()
+    return jsonify({"ok": ok})
+
+
+# =========================
+# BORRAR TURNO
+# =========================
+@app.route("/borrar_turno", methods=["POST"])
+def borrar_turno():
+    data = request.json
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    try:
+        c.execute("DELETE FROM turnos WHERE id=?", (data["id"],))
+        conn.commit()
+        ok = True
+    except Exception as e:
+        print("Error borrando:", e)
+        ok = False
+
+    conn.close()
+    return jsonify({"ok": ok})
+
+
+
 # =========================
 # LOGIN
 # =========================
