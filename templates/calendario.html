@@ -2,12 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Calendario</title>
+<title>Calendario de Turnos</title>
 
 <style>
 body {
     margin: 0;
-    font-family: Arial;
+    font-family: Arial, sans-serif;
     background: #f4f6f9;
 }
 
@@ -16,7 +16,7 @@ header {
     color: white;
     padding: 15px;
     text-align: center;
-    font-size: 20px;
+    font-size: 22px;
     font-weight: bold;
 }
 
@@ -28,12 +28,14 @@ header {
     display: flex;
     justify-content: space-between;
     margin-bottom: 20px;
+    flex-wrap: wrap;
 }
 
 select {
     padding: 10px;
     border-radius: 8px;
     border: 1px solid #ccc;
+    min-width: 200px;
 }
 
 table {
@@ -49,12 +51,21 @@ th {
     background: #4facfe;
     color: white;
     padding: 12px;
+    font-size: 14px;
 }
 
 td {
     padding: 12px;
     border-bottom: 1px solid #eee;
     text-align: center;
+    vertical-align: top;
+}
+
+td:nth-child(3) {
+    text-align: left;
+    max-width: 300px;
+    font-size: 14px;
+    color: #555;
 }
 
 tr:hover {
@@ -62,18 +73,58 @@ tr:hover {
 }
 
 .badge {
-    padding: 5px 10px;
+    padding: 6px 10px;
     border-radius: 6px;
     color: white;
     font-size: 12px;
+    display: inline-block;
 }
 
-.dr { background: #28a745; }
+.dr {
+    background: #28a745;
+}
 
 .empty {
     text-align: center;
     margin-top: 40px;
     color: #777;
+    font-size: 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    table, thead, tbody, th, td, tr {
+        display: block;
+    }
+
+    tr {
+        margin-bottom: 15px;
+        background: white;
+        border-radius: 10px;
+        padding: 10px;
+    }
+
+    th {
+        display: none;
+    }
+
+    td {
+        text-align: left;
+        padding: 8px;
+        border: none;
+    }
+
+    td::before {
+        font-weight: bold;
+        display: block;
+        margin-bottom: 3px;
+    }
+
+    td:nth-child(1)::before { content: "Paciente"; }
+    td:nth-child(2)::before { content: "DNI"; }
+    td:nth-child(3)::before { content: "Síntomas"; }
+    td:nth-child(4)::before { content: "Médico"; }
+    td:nth-child(5)::before { content: "Fecha"; }
 }
 </style>
 
@@ -82,13 +133,14 @@ tr:hover {
 <body>
 
 <header>
-📅 Gestión de Turnos
+📅 Gestión de Turnos Médicos
 </header>
 
 <div class="container">
 
 <div class="top-bar">
-    
+
+    <!-- FILTRO POR MÉDICO -->
     <form method="GET" action="/calendario">
         <select name="doctor" onchange="this.form.submit()">
             <option value="">Todos los médicos</option>
@@ -107,6 +159,8 @@ tr:hover {
 <table>
 <tr>
     <th>Paciente</th>
+    <th>DNI</th>
+    <th>Síntomas</th>
     <th>Médico</th>
     <th>Fecha</th>
 </tr>
@@ -114,14 +168,18 @@ tr:hover {
 {% for t in turnos %}
 <tr>
     <td>{{ t[0] }}</td>
-    <td><span class="badge dr">{{ t[1] }}</span></td>
+    <td>{{ t[1] }}</td>
     <td>{{ t[2] }}</td>
+    <td><span class="badge dr">{{ t[3] }}</span></td>
+    <td>{{ t[4] }}</td>
 </tr>
 {% endfor %}
-
 </table>
+
 {% else %}
-<div class="empty">No hay turnos para este filtro</div>
+<div class="empty">
+No hay turnos cargados
+</div>
 {% endif %}
 
 </div>
