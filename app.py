@@ -2,36 +2,19 @@ import os
 import sqlite3
 import json
 from datetime import datetime, timedelta, time
-from functools import wraps
-
 from flask import Flask, render_template, request, jsonify, session, redirect
-from dotenv import load_dotenv
+import google.generativeai as genai
 from apscheduler.schedulers.background import BackgroundScheduler
 
 # =========================
 # CONFIG
 # =========================
-load_dotenv()
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 app = Flask(__name__)
-app.secret_key = "clave_secreta_super_segura"
+app.secret_key = "clave_secreta"
 
 DB = "turnos.db"
-
-# =========================
-# USUARIOS
-# =========================
-USERS = {
-    "admin": "1234"
-}
-
-def login_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if "user" not in session:
-            return redirect("/login")
-        return f(*args, **kwargs)
-    return decorated
 
 # =========================
 # INIT DB
@@ -107,8 +90,8 @@ def generar_turnos(especialidad):
         "ginecología": ["Dra. María Gómez"],
         "traumatología": ["Dr. Carlos Ruiz"],
         "dermatología": ["Dra. Laura Díaz"],
-        "oftalmología": ["Dr. Andrés Vega"],
-        "odontología": ["Dr. Martín Silva"]
+        "oftalmología": ["Dr. Pablo Torres"],
+        "odontología": ["Dr. Martín López"]
     }
 
     lista = doctores.get(especialidad.lower(), ["Dr. General"])
@@ -141,14 +124,12 @@ def generar_turnos(especialidad):
 def triage(texto):
 
     try:
-        import google.generativeai as genai
-
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        model = genai.GenerativeModel("gemini-1.5-flash")
 
         prompt = f"""
-Sos un sistema de TRIAGE MÉDICO.
+Sos un asistente de triage médico.
 
-Clasificá los síntomas en UNA especialidad:
+Clasificá correctamente según síntomas en UNA especialidad:
 
 - clínica médica
 - traumatología
@@ -157,14 +138,19 @@ Clasificá los síntomas en UNA especialidad:
 - oftalmología
 - odontología
 
-REGLAS:
-- Usar la especialidad MÁS específica posible
-- NO usar clínica médica si hay otra opción clara
+IMPORTANTE:
+- Síntomas femeninos → ginecología
+- Dolor muscular/golpes → traumatología
+- Problemas de piel → dermatología
+- Ojos → oftalmología
+- Dientes → odontología
+- General → clínica médica
 
-URGENCIA:
-BAJA, MEDIA o ALTA
+También:
+- urgencia: BAJA, MEDIA o ALTA
+- 5 recomendaciones concretas
 
-Devolver SOLO JSON:
+Respondé SOLO JSON válido:
 
 {{
   "urgencia": "...",
@@ -176,54 +162,23 @@ Síntomas:
 {texto}
 """
 
-        model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
+        data = json.loads(response.text.strip())
 
-        raw = response.text.strip()
-        raw = raw.replace("```json", "").replace("```", "").strip()
-
-        return json.loads(raw)
+        return data
 
     except Exception as e:
-        print("⚠️ Error IA:", e)
-
-        t = texto.lower()
-
-        if any(x in t for x in ["flujo", "vaginal", "menstru", "embarazo", "pélvico"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "ginecología",
-                "recomendaciones": [
-                    "Evitar relaciones sexuales",
-                    "Mantener higiene íntima",
-                    "No automedicarse",
-                    "Registrar síntomas",
-                    "Consultar especialista"
-                ]
-            }
-
-        if any(x in t for x in ["golpe", "caída", "muscular"]):
-            return {
-                "urgencia": "MEDIA",
-                "especialidad": "traumatología",
-                "recomendaciones": [
-                    "Aplicar frío",
-                    "Reposo",
-                    "Evitar esfuerzo",
-                    "Elevar zona",
-                    "Consultar si persiste"
-                ]
-            }
+        print("Error IA:", e)
 
         return {
-            "urgencia": "BAJA",
+            "urgencia": "MEDIA",
             "especialidad": "clínica médica",
             "recomendaciones": [
                 "Descansar",
                 "Hidratarse",
+                "Evitar esfuerzo",
                 "Controlar síntomas",
-                "Evitar automedicación",
-                "Consultar si empeora"
+                "Consultar médico"
             ]
         }
 
@@ -261,7 +216,6 @@ def guardar_turno(data):
 # RECORDATORIOS
 # =========================
 def recordar_turnos():
-
     conn = sqlite3.connect(DB)
     c = conn.cursor()
 
@@ -279,54 +233,54 @@ scheduler.add_job(recordar_turnos, 'interval', hours=1)
 scheduler.start()
 
 # =========================
-# ROUTES
+# LOGIN
+# =========================
+@app.route("/login", methods=["GET", "POST"])
+def login():
+
+    if request.method == "POST":
+        user = request.form.get("usuario")
+        password = request.form.get("password")
+
+        if user == "admin" and password == "1234":
+            session["user"] = user
+            return redirect("/calendario")
+
+        return "Credenciales incorrectas"
+
+    return render_template("login.html")
+
+# =========================
+# CALENDARIO
+# =========================
+@app.route("/calendario")
+def calendario():
+
+    if "user" not in session:
+        return redirect("/login")
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute("SELECT nombre, doctor, fecha FROM turnos")
+    turnos = c.fetchall()
+    conn.close()
+
+    return render_template("calendario.html", turnos=turnos)
+
+# =========================
+# HOME
 # =========================
 @app.route("/")
 def index():
     return render_template("index.html")
 
-# LOGIN
-@app.route("/login")
-def login():
-    return render_template("login.html")
-
-@app.route("/login", methods=["POST"])
-def login_post():
-    user = request.form.get("user")
-    password = request.form.get("password")
-
-    if USERS.get(user) == password:
-        session["user"] = user
-        return redirect("/calendario")
-
-    return render_template("login.html", error="Credenciales incorrectas")
-
-@app.route("/logout")
-def logout():
-    session.pop("user", None)
-    return redirect("/login")
-
-# CALENDARIO
-@app.route("/calendario")
-@login_required
-def calendario():
-
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    c.execute("SELECT nombre, doctor, fecha FROM turnos ORDER BY fecha ASC")
-    turnos = c.fetchall()
-
-    conn.close()
-
-    return render_template("calendario.html", turnos=turnos)
-
-# TRIAGE
+# =========================
+# TRIAGE ROUTE
+# =========================
 @app.route("/triage", methods=["POST"])
 def triage_route():
 
     texto = request.json.get("texto")
-
     data = triage(texto)
 
     if data["urgencia"] == "ALTA":
@@ -345,14 +299,16 @@ def triage_route():
         "recomendaciones": data["recomendaciones"]
     })
 
+# =========================
 # CONFIRMAR
+# =========================
 @app.route("/confirmar", methods=["POST"])
 def confirmar():
     ok = guardar_turno(request.json)
     return jsonify({"ok": ok})
 
 # =========================
-# RUN LOCAL
+# RUN
 # =========================
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
