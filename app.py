@@ -42,31 +42,48 @@ def init_db():
 
 init_db()
 
+ # =========================
+# LOGIN SIMPLE Y ROBUSTO
 # =========================
-# LOGIN SIMPLE
-# =========================
+
 USUARIOS = {
-    "juan": "Dr. Juan Pérez",
-    "lopez": "Dr. Esteban López",
-    "cardio": "Dr. Cardiólogo",
-    "gine": "Dra. Ginecóloga"
+    "juan": {
+        "password": "1234",
+        "nombre": "Dr. Juan Pérez"
+    },
+    "lopez": {
+        "password": "1234",
+        "nombre": "Dr. Esteban López"
+    },
+    "cardio": {
+        "password": "1234",
+        "nombre": "Dr. Cardiólogo"
+    },
+    "gine": {
+        "password": "1234",
+        "nombre": "Dra. Ginecóloga"
+    }
 }
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    error = None
+
     if request.method == "POST":
-        user = request.form.get("usuario")
+        usuario = request.form.get("usuario")
+        password = request.form.get("password")
 
-        if user in USUARIOS:
-            session["doctor"] = USUARIOS[user]
-            return redirect("/calendario")
+        if usuario in USUARIOS:
+            if USUARIOS[usuario]["password"] == password:
+                session["doctor"] = USUARIOS[usuario]["nombre"]
+                session["usuario"] = usuario
+                return redirect("/calendario")
+            else:
+                error = "Contraseña incorrecta"
+        else:
+            error = "Usuario no existe"
 
-    return render_template("login.html")
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect("/login")
+    return render_template("login.html", error=error)
 
 # =========================
 # TRIAGE ULTRA COMPLETO
