@@ -1,89 +1,128 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Calendario</title>
+<meta charset="UTF-8">
+<title>Calendario</title>
 
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f4f6f9;
-        }
+<style>
+body {
+    margin: 0;
+    font-family: Arial;
+    background: #f4f6f9;
+}
 
-        header {
-            background: #4facfe;
-            color: white;
-            padding: 15px;
-            text-align: center;
-            font-size: 20px;
-            font-weight: bold;
-        }
+header {
+    background: #4facfe;
+    color: white;
+    padding: 15px;
+    text-align: center;
+    font-size: 20px;
+    font-weight: bold;
+}
 
-        .container {
-            padding: 30px;
-        }
+.container {
+    padding: 30px;
+}
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
 
-        th {
-            background: #4facfe;
-            color: white;
-            padding: 12px;
-        }
+select {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+}
 
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #eee;
-            text-align: center;
-        }
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
 
-        tr:hover {
-            background: #f1f7ff;
-        }
+th {
+    background: #4facfe;
+    color: white;
+    padding: 12px;
+}
 
-        .empty {
-            text-align: center;
-            margin-top: 40px;
-            color: #777;
-        }
-    </style>
+td {
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+    text-align: center;
+}
+
+tr:hover {
+    background: #f1f7ff;
+}
+
+.badge {
+    padding: 5px 10px;
+    border-radius: 6px;
+    color: white;
+    font-size: 12px;
+}
+
+.dr { background: #28a745; }
+
+.empty {
+    text-align: center;
+    margin-top: 40px;
+    color: #777;
+}
+</style>
+
 </head>
 
 <body>
 
 <header>
-    📅 Turnos Médicos
+📅 Gestión de Turnos
 </header>
 
 <div class="container">
 
-    {% if turnos %}
-    <table>
-        <tr>
-            <th>Paciente</th>
-            <th>Doctor</th>
-            <th>Fecha</th>
-        </tr>
+<div class="top-bar">
+    
+    <form method="GET" action="/calendario">
+        <select name="doctor" onchange="this.form.submit()">
+            <option value="">Todos los médicos</option>
 
-        {% for t in turnos %}
-        <tr>
-            <td>{{ t[0] }}</td>
-            <td>{{ t[1] }}</td>
-            <td>{{ t[2] }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-    {% else %}
-        <div class="empty">No hay turnos cargados</div>
-    {% endif %}
+            {% for m in medicos %}
+                <option value="{{ m }}" {% if doctor_actual == m %}selected{% endif %}>
+                    {{ m }}
+                </option>
+            {% endfor %}
+        </select>
+    </form>
+
+</div>
+
+{% if turnos %}
+<table>
+<tr>
+    <th>Paciente</th>
+    <th>Médico</th>
+    <th>Fecha</th>
+</tr>
+
+{% for t in turnos %}
+<tr>
+    <td>{{ t[0] }}</td>
+    <td><span class="badge dr">{{ t[1] }}</span></td>
+    <td>{{ t[2] }}</td>
+</tr>
+{% endfor %}
+
+</table>
+{% else %}
+<div class="empty">No hay turnos para este filtro</div>
+{% endif %}
 
 </div>
 
