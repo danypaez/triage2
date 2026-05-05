@@ -3,21 +3,22 @@ import sqlite3
 import json
 from datetime import datetime, timedelta, time
 from flask import Flask, render_template, request, jsonify, session, redirect
-import google.generativeai as genai
-from apscheduler.schedulers.background import BackgroundScheduler
 
-# =========================
-# CONFIG
-# =========================
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# IA
+try:
+    import google.generativeai as genai
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+    IA_ACTIVA = True
+except:
+    IA_ACTIVA = False
 
 app = Flask(__name__)
-app.secret_key = "clave_secreta"
+app.secret_key = "super_secret_key"
 
 DB = "turnos.db"
 
 # =========================
-# INIT DB
+# BASE DE DATOS
 # =========================
 def init_db():
     conn = sqlite3.connect(DB)
@@ -32,7 +33,7 @@ def init_db():
         especialidad TEXT,
         doctor TEXT,
         fecha TEXT,
-        UNIQUE(doctor, fecha)
+        urgencia TEXT
     )
     """)
 
@@ -42,392 +43,231 @@ def init_db():
 init_db()
 
 # =========================
-# HORARIOS
+# LOGIN SIMPLE
 # =========================
-def generar_slots_dia(fecha):
+USUARIOS = {
+    "juan": "Dr. Juan Pérez",
+    "lopez": "Dr. Esteban López",
+    "cardio": "Dr. Cardiólogo",
+    "gine": "Dra. Ginecóloga"
+}
 
-    dia = fecha.weekday()
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        user = request.form.get("usuario")
 
-    if dia < 5:
-        inicio, fin = time(9, 0), time(17, 0)
-    elif dia == 5:
-        inicio, fin = time(9, 0), time(14, 0)
-    else:
-        return []
+        if user in USUARIOS:
+            session["doctor"] = USUARIOS[user]
+            return redirect("/calendario")
 
-    slots = []
-    actual = datetime.combine(fecha, inicio)
-    fin_dt = datetime.combine(fecha, fin)
+    return render_template("login.html")
 
-    while actual < fin_dt:
-        slots.append(actual.strftime("%d/%m %H:%M"))
-        actual += timedelta(minutes=30)
-
-    return slots
-
-# =========================
-# DISPONIBILIDAD
-# =========================
-def turno_disponible(doctor, fecha):
-
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    c.execute("SELECT COUNT(*) FROM turnos WHERE doctor=? AND fecha=?", (doctor, fecha))
-    ocupado = c.fetchone()[0]
-
-    conn.close()
-
-    return ocupado == 0
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
 
 # =========================
-# GENERAR TURNOS
-# =========================
-def generar_turnos(especialidad):
-
-    doctores = {
-        "clínica médica": ["Dr. Juan Pérez", "Dr. Esteban López"],
-        "ginecología": ["Dra. María Gómez"],
-        "traumatología": ["Dr. Carlos Ruiz"],
-        "dermatología": ["Dra. Laura Díaz"],
-        "oftalmología": ["Dr. Pablo Torres"],
-        "odontología": ["Dr. Martín López"]
-    }
-
-    lista = doctores.get(especialidad.lower(), ["Dr. General"])
-
-    hoy = datetime.now()
-    resultado = []
-
-    for doctor in lista:
-
-        disponibles = []
-
-        for i in range(1, 10):
-            fecha = hoy + timedelta(days=i)
-
-            for slot in generar_slots_dia(fecha):
-                if turno_disponible(doctor, slot):
-                    disponibles.append(slot)
-
-        if disponibles:
-            resultado.append({
-                "doctor": doctor,
-                "turnos": disponibles[:3]
-            })
-
-    return resultado
-
-# =========================
-# TRIAGE IA
+# TRIAGE ULTRA COMPLETO
 # =========================
 def triage(texto):
 
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+    texto_lower = texto.lower()
 
-        model = genai.GenerativeModel("gemini-1.5-flash")
+    # =========================
+    # IA
+    # =========================
+    if IA_ACTIVA:
+        try:
+            prompt = f"""
+Sos un médico experto en triage clínico.
 
-        prompt = f"""
-Sos un sistema de TRIAGE MÉDICO CLÍNICO ESTRICTO.
+Clasificá los síntomas en UNA especialidad EXACTA:
 
-⚠️ OBJETIVO:
-Clasificar los síntomas en UNA sola especialidad médica correcta, evitando usar "clínica médica" salvo que sea realmente general.
+Especialidades:
+- clínica médica
+- cardiología
+- neumonología
+- gastroenterología
+- nefrología
+- neurología
+- traumatología
+- dermatología
+- oftalmología
+- otorrinolaringología
+- ginecología
+- obstetricia
+- urología
+- endocrinología
+- pediatría
+- psiquiatría
+- odontología
 
-========================
-ESPECIALIDADES Y CRITERIOS
-========================
+Reglas estrictas:
 
-- cardiología:
-  dolor en el pecho, palpitaciones, presión alta, arritmias, falta de aire cardíaca
+CARDIOLOGÍA:
+dolor en el pecho, palpitaciones, presión en pecho, falta de aire con esfuerzo
 
-- neumonología:
-  tos, dificultad respiratoria, asma, bronquitis, neumonía
+NEUMONOLOGÍA:
+tos persistente, dificultad respiratoria, asma, bronquitis
 
-- gastroenterología:
-  dolor abdominal, diarrea, vómitos, acidez, gastritis, hígado, colon
+GASTRO:
+dolor abdominal, diarrea, vómitos, acidez
 
-- nefrología:
-  problemas renales, dolor lumbar renal, orina anormal, retención líquidos
+GINECOLOGÍA:
+flujo vaginal, dolor pélvico, menstruación irregular, infecciones
 
-- urología:
-  problemas urinarios, próstata, infecciones urinarias, dolor al orinar
+OBSTETRICIA:
+embarazo, contracciones, sangrado embarazo
 
-- ginecología:
-  dolor pélvico, flujo vaginal, menstruación, infecciones ginecológicas
+TRAUMATOLOGÍA:
+golpes, fracturas, dolor muscular, articulaciones
 
-- obstetricia:
-  embarazo, controles prenatales, contracciones, sangrado en embarazo
+DERMATOLOGÍA:
+manchas, sarpullido, picazón, piel
 
-- traumatología:
-  golpes, fracturas, esguinces, dolor muscular, articulaciones
+NEUROLOGÍA:
+mareos, convulsiones, pérdida de memoria
 
-- neurología:
-  mareos, convulsiones, pérdida de memoria, dolores de cabeza severos
+OFTALMOLOGÍA:
+visión borrosa, dolor ocular
 
-- dermatología:
-  manchas, sarpullido, picazón, acné, lesiones en piel
+OTORRINO:
+dolor oído, garganta, nariz
 
-- oftalmología:
-  visión borrosa, dolor ocular, irritación ojos
+UROLOGÍA:
+dolor al orinar, infecciones urinarias
 
-- otorrinolaringología:
-  dolor de oído, garganta, nariz, sinusitis
+ENDOCRINO:
+diabetes, tiroides
 
-- odontología:
-  dolor dental, encías, infecciones bucales
+ODONTOLOGÍA:
+dolor dental
 
-- endocrinología:
-  diabetes, tiroides, hormonas, obesidad
+PSIQUIATRÍA:
+ansiedad, depresión
 
-- psiquiatría:
-  ansiedad severa, depresión, ataques de pánico
+URGENCIA:
+ALTA → riesgo de vida
+MEDIA → necesita atención
+BAJA → leve
 
-- clínica médica:
-  SOLO si los síntomas son generales, inespecíficos o múltiples sistemas
-
-========================
-REGLAS ESTRICTAS
-========================
-
-1. ELEGIR SOLO UNA especialidad.
-2. NO usar clínica médica si hay otra opción clara.
-3. Priorizar el síntoma principal.
-4. Si hay síntomas femeninos → ginecología u obstetricia.
-5. Si hay múltiples sistemas, elegir el predominante.
-
-========================
-URGENCIA
-========================
-
-ALTA:
-- dolor de pecho intenso
-- dificultad para respirar
-- pérdida de conocimiento
-- sangrado importante
-- convulsiones
-
-MEDIA:
-- dolor moderado
-- fiebre persistente
-- síntomas que limitan actividad
-
-BAJA:
-- síntomas leves o iniciales
-
-========================
-RESPUESTA
-========================
-
-Devolver SOLO JSON válido:
+Devolver JSON:
 
 {{
-  "urgencia": "BAJA | MEDIA | ALTA",
-  "especialidad": "...",
-  "recomendaciones": ["...", "...", "...", "...", "..."]
+"urgencia":"...",
+"especialidad":"...",
+"recomendaciones":["...","...","...","...","..."]
 }}
 
-Las recomendaciones deben ser:
-- claras
-- concretas
-- seguras
-- máximo 5
-
-========================
-SÍNTOMAS DEL PACIENTE
-========================
-
+Síntomas:
 {texto}
 """
+            response = genai.GenerativeModel("gemini-1.5-flash").generate_content(prompt)
+            data = json.loads(response.text)
+            return data
 
-        response = model.generate_content(prompt)
+        except Exception as e:
+            print("Error IA:", e)
 
-        raw = response.text.strip()
+    # =========================
+    # FALLBACK INTELIGENTE
+    # =========================
 
-        data = json.loads(raw)
+    t = texto_lower
 
-        # seguridad: asegurar 5 recomendaciones
-        if len(data.get("recomendaciones", [])) < 5:
-            data["recomendaciones"] += [
-                "Mantener reposo",
-                "Hidratarse adecuadamente",
-                "Evitar automedicación",
-                "Consultar si empeora",
-                "Control médico"
+    # CARDIO
+    if any(x in t for x in ["pecho", "palpitaciones", "presión pecho"]):
+        return {
+            "urgencia": "ALTA",
+            "especialidad": "cardiología",
+            "recomendaciones": [
+                "Ir a guardia urgente",
+                "No realizar esfuerzo",
+                "Mantenerse acompañado",
+                "Controlar respiración",
+                "Evitar estrés"
             ]
-            data["recomendaciones"] = data["recomendaciones"][:5]
+        }
 
-        return data
-
-    except Exception as e:
-        print("⚠️ Error IA:", e)
-
-        # =========================
-        # FALLBACK INTELIGENTE
-        # =========================
-        t = texto.lower()
-
-        if "pecho" in t:
-            esp = "cardiología"
-        elif "respirar" in t or "tos" in t:
-            esp = "neumonología"
-        elif "panza" in t or "abdomen" in t:
-            esp = "gastroenterología"
-        elif "riñon" in t or "orina" in t:
-            esp = "nefrología"
-        elif "embarazo" in t:
-            esp = "obstetricia"
-        elif "menstru" in t or "flujo" in t:
-            esp = "ginecología"
-        elif "golpe" in t or "muscular" in t:
-            esp = "traumatología"
-        elif "piel" in t:
-            esp = "dermatología"
-        elif "ojo" in t:
-            esp = "oftalmología"
-        elif "diente" in t:
-            esp = "odontología"
-        else:
-            esp = "clínica médica"
-
+    # GINE
+    if any(x in t for x in ["flujo", "vaginal", "menstruación", "útero"]):
         return {
             "urgencia": "MEDIA",
-            "especialidad": esp,
+            "especialidad": "ginecología",
             "recomendaciones": [
+                "Evitar relaciones sexuales",
+                "Mantener higiene íntima",
+                "Observar cambios",
+                "No automedicarse",
+                "Consultar especialista"
+            ]
+        }
+
+    # TRAUMA
+    if any(x in t for x in ["golpe", "fractura", "torcedura"]):
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "traumatología",
+            "recomendaciones": [
+                "Aplicar hielo",
                 "Reposo",
-                "Hidratación",
+                "Inmovilizar zona",
                 "Evitar esfuerzo",
-                "Controlar evolución",
                 "Consultar médico"
             ]
         }
+
+    # GASTRO
+    if any(x in t for x in ["dolor estómago", "diarrea", "vomito"]):
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "gastroenterología",
+            "recomendaciones": [
+                "Dieta liviana",
+                "Hidratación",
+                "Evitar grasas",
+                "Controlar síntomas",
+                "Consultar médico"
+            ]
+        }
+
+    # DEFAULT
+    return {
+        "urgencia": "BAJA",
+        "especialidad": "clínica médica",
+        "recomendaciones": [
+            "Descansar",
+            "Hidratarse",
+            "Observar evolución",
+            "Evitar esfuerzo",
+            "Consultar si empeora"
+        ]
+    }
+
 # =========================
-# GUARDAR TURNO
+# TURNOS
 # =========================
 def guardar_turno(data):
-
     conn = sqlite3.connect(DB)
     c = conn.cursor()
 
-    try:
-        c.execute("""
-        INSERT INTO turnos (nombre, dni, sintomas, especialidad, doctor, fecha)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            data["nombre"],
-            data["dni"],
-            data["sintomas"],
-            data["especialidad"],
-            data["doctor"],
-            data["fecha"]
-        ))
+    c.execute("""
+    INSERT INTO turnos (nombre, dni, sintomas, especialidad, doctor, fecha, urgencia)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        data["nombre"],
+        data["dni"],
+        data["sintomas"],
+        data["especialidad"],
+        data["doctor"],
+        data["fecha"],
+        data["urgencia"]
+    ))
 
-        conn.commit()
-        ok = True
-
-    except:
-        ok = False
-
+    conn.commit()
     conn.close()
-    return ok
-
-# =========================
-# RECORDATORIOS
-# =========================
-def recordar_turnos():
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    manana = (datetime.now() + timedelta(days=1)).strftime("%d/%m")
-
-    c.execute("SELECT nombre, fecha FROM turnos WHERE fecha LIKE ?", (f"{manana}%",))
-
-    for t in c.fetchall():
-        print("🔔 Recordatorio:", t)
-
-    conn.close()
-
-scheduler = BackgroundScheduler()
-scheduler.add_job(recordar_turnos, 'interval', hours=1)
-scheduler.start()
-
-
-# =========================
-# EDITAR TURNO
-# =========================
-@app.route("/editar_turno", methods=["POST"])
-def editar_turno():
-    data = request.json
-
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    try:
-        c.execute("""
-        UPDATE turnos
-        SET nombre=?, dni=?, sintomas=?, especialidad=?, doctor=?, fecha=?
-        WHERE id=?
-        """, (
-            data["nombre"],
-            data["dni"],
-            data["sintomas"],
-            data["especialidad"],
-            data["doctor"],
-            data["fecha"],
-            data["id"]
-        ))
-
-        conn.commit()
-        ok = True
-    except Exception as e:
-        print("Error editando:", e)
-        ok = False
-
-    conn.close()
-    return jsonify({"ok": ok})
-
-
-# =========================
-# BORRAR TURNO
-# =========================
-@app.route("/borrar_turno", methods=["POST"])
-def borrar_turno():
-    data = request.json
-
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    try:
-        c.execute("DELETE FROM turnos WHERE id=?", (data["id"],))
-        conn.commit()
-        ok = True
-    except Exception as e:
-        print("Error borrando:", e)
-        ok = False
-
-    conn.close()
-    return jsonify({"ok": ok})
-
-
-
-# =========================
-# LOGIN
-# =========================
-@app.route("/login", methods=["GET", "POST"])
-def login():
-
-    if request.method == "POST":
-        user = request.form.get("usuario")
-        password = request.form.get("password")
-
-        if user == "admin" and password == "1234":
-            session["user"] = user
-            return redirect("/calendario")
-
-        return "Credenciales incorrectas"
-
-    return render_template("login.html")
 
 # =========================
 # CALENDARIO
@@ -435,81 +275,67 @@ def login():
 @app.route("/calendario")
 def calendario():
 
-    if "user" not in session:
+    if "doctor" not in session:
         return redirect("/login")
 
-    doctor = request.args.get("doctor")
+    doctor = session["doctor"]
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
 
-    if doctor:
-        c.execute("""
-        SELECT nombre, dni, sintomas, doctor, fecha 
-        FROM turnos 
-        WHERE doctor=?
-        """, (doctor,))
-    else:
-        c.execute("""
-        SELECT nombre, dni, sintomas, doctor, fecha 
-        FROM turnos
-        """)
-
+    c.execute("SELECT * FROM turnos WHERE doctor=?", (doctor,))
     turnos = c.fetchall()
-
-    c.execute("SELECT DISTINCT doctor FROM turnos")
-    medicos = [m[0] for m in c.fetchall()]
 
     conn.close()
 
-    return render_template(
-        "calendario.html",
-        turnos=turnos,
-        medicos=medicos,
-        doctor_actual=doctor
-    )
+    return render_template("calendario.html", turnos=turnos, doctor=doctor)
+
+# =========================
+# API
+# =========================
+@app.route("/triage", methods=["POST"])
+def triage_api():
+    texto = request.json.get("texto")
+    data = triage(texto)
+    return jsonify(data)
+
+@app.route("/confirmar", methods=["POST"])
+def confirmar():
+    guardar_turno(request.json)
+    return jsonify({"ok": True})
+
+@app.route("/eliminar/<int:id>")
+def eliminar(id):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute("DELETE FROM turnos WHERE id=?", (id,))
+    conn.commit()
+    conn.close()
+    return redirect("/calendario")
+
+@app.route("/editar/<int:id>", methods=["POST"])
+def editar(id):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    nueva_fecha = request.form.get("fecha")
+
+    c.execute("UPDATE turnos SET fecha=? WHERE id=?", (nueva_fecha, id))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/calendario")
+
 # =========================
 # HOME
 # =========================
 @app.route("/")
-def index():
+def home():
     return render_template("index.html")
-
-# =========================
-# TRIAGE ROUTE
-# =========================
-@app.route("/triage", methods=["POST"])
-def triage_route():
-
-    texto = request.json.get("texto")
-    data = triage(texto)
-
-    if data["urgencia"] == "ALTA":
-        return jsonify({
-            "alerta": "⚠️ URGENCIA ALTA - acudir a guardia",
-            "especialidad": data["especialidad"],
-            "recomendaciones": data["recomendaciones"],
-            "medicos": []
-        })
-
-    medicos = generar_turnos(data["especialidad"])
-
-    return jsonify({
-        "especialidad": data["especialidad"],
-        "medicos": medicos,
-        "recomendaciones": data["recomendaciones"]
-    })
-
-# =========================
-# CONFIRMAR
-# =========================
-@app.route("/confirmar", methods=["POST"])
-def confirmar():
-    ok = guardar_turno(request.json)
-    return jsonify({"ok": ok})
 
 # =========================
 # RUN
 # =========================
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
