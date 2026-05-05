@@ -1,19 +1,9 @@
-import os
+ import os
 import sqlite3
 import json
 from datetime import datetime, timedelta, time
 from flask import Flask, render_template, request, jsonify, session
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
 from apscheduler.schedulers.background import BackgroundScheduler
-
-load_dotenv()
-
-API_KEY = os.getenv("API_KEY_GEMINI")
-MODEL = os.getenv("MODEL_GEMINI", "models/gemini-1.5-flash")
-
-client = genai.Client(api_key=API_KEY)
 
 app = Flask(__name__)
 app.secret_key = "clave_secreta_super_segura"
@@ -90,15 +80,20 @@ def turno_disponible(doctor, fecha):
 def generar_turnos(especialidad):
 
     doctores = {
-        "clínica médica": ["Dr. Juan Pérez", "Dr. Esteban López"]
+        "clínica médica": ["Dr. Juan Pérez", "Dr. Esteban López"],
+        "dermatología": ["Dr. Juan Pérez"],
+        "traumatología": ["Dr. Esteban López"],
+        "ginecología": ["Dra. María López"],
+        "oftalmología": ["Dr. Carlos Díaz"],
+        "odontología": ["Dra. Laura Gómez"]
     }
 
-    lista = doctores.get(especialidad.lower(), ["Dr. General"])
+    lista = doctores.get(especialidad.lower(), ["Dr. Juan Pérez"])
 
     hoy = datetime.now()
     resultado = []
 
-    for doctor in lista[:2]:
+    for doctor in lista:
 
         disponibles = []
 
@@ -118,54 +113,77 @@ def generar_turnos(especialidad):
     return resultado
 
 # =========================
-# TRIAGE IA
+# TRIAGE (SIN IA EXTERNA)
 # =========================
 def triage(texto):
 
-    prompt = f"""
-Eres un asistente de triage médico.
+    t = texto.lower()
 
-Debes clasificar los síntomas en UNA especialidad médica adecuada.
+    if "dolor pecho" in t or "no puedo respirar" in t:
+        return {
+            "urgencia": "ALTA",
+            "especialidad": "clínica médica",
+            "recomendaciones": [
+                "Acudir inmediatamente a una guardia médica",
+                "No quedarse solo",
+                "Evitar esfuerzos físicos"
+            ]
+        }
 
-Especialidades posibles:
-- clínica médica
-- traumatología
-- ginecología
-- dermatología
-- oftalmología
-- odontología
+    elif "piel" in t or "mancha" in t:
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "dermatología",
+            "recomendaciones": [
+                "Evitar exposición al sol",
+                "Mantener la zona limpia",
+                "No automedicarse"
+            ]
+        }
 
-Reglas:
-- Dolor muscular, golpes → traumatología
-- Problemas de piel → dermatología
-- Problemas visuales → oftalmología
-- Dolor dental → odontología
-- Síntomas generales → clínica médica
-- Temas femeninos → ginecología
+    elif "golpe" in t or "dolor muscular" in t:
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "traumatología",
+            "recomendaciones": [
+                "Reposo",
+                "Aplicar frío local",
+                "Evitar esfuerzos"
+            ]
+        }
 
-Devuelve SOLO JSON válido:
+    elif "vista" in t or "ojos" in t:
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "oftalmología",
+            "recomendaciones": [
+                "Evitar pantallas",
+                "No frotar los ojos",
+                "Consultar si empeora"
+            ]
+        }
 
-{{
-  "urgencia": "BAJA / MEDIA / ALTA",
-  "especialidad": "...",
-  "recomendaciones": ["..."]
-}}
+    elif "diente" in t:
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "odontología",
+            "recomendaciones": [
+                "Evitar alimentos duros",
+                "Mantener higiene bucal",
+                "No aplicar calor"
+            ]
+        }
 
-IMPORTANTE:
-- NO inventar texto fuera del JSON
-- Máximo 3 recomendaciones claras y útiles
-
-Síntomas:
-{texto}
-"""
-
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(temperature=0.2)
-    )
-
-    return response.text
+    else:
+        return {
+            "urgencia": "BAJA",
+            "especialidad": "clínica médica",
+            "recomendaciones": [
+                "Descansar",
+                "Hidratarse",
+                "Controlar evolución"
+            ]
+        }
 
 # =========================
 # GUARDAR TURNO
@@ -230,16 +248,7 @@ def triage_route():
 
     texto = request.json.get("texto")
 
-    raw = triage(texto)
-
-    try:
-        data = json.loads(raw)
-    except:
-        data = {
-            "urgencia": "MEDIA",
-            "especialidad": "clínica médica",
-            "recomendaciones": ["Reposo adecuado", "Mantenerse hidratado", "Evitar esfuerzos"]
-        }
+    data = triage(texto)
 
     if data["urgencia"] == "ALTA":
         return jsonify({
@@ -263,4 +272,4 @@ def confirmar():
     return jsonify({"ok": ok})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=8080)
