@@ -1,6 +1,3 @@
 Flask
 gunicorn
-python-dotenv
-google-generativeai
 apscheduler
-flask-cors
