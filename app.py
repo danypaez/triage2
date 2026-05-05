@@ -1,10 +1,13 @@
 import os
 import sqlite3
 import json
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect
+from werkzeug.security import generate_password_hash, check_password_hash
 
-# IA
+# =========================
+# IA (opcional)
+# =========================
 try:
     import google.generativeai as genai
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -14,16 +17,32 @@ except:
 
 app = Flask(__name__)
 app.secret_key = "super_secret_key"
+app.permanent_session_lifetime = timedelta(minutes=15)
 
 DB = "turnos.db"
 
 # =========================
-# BASE DE DATOS
+# DB
 # =========================
+def get_db():
+    return sqlite3.connect(DB)
+
 def init_db():
-    conn = sqlite3.connect(DB)
+    conn = get_db()
     c = conn.cursor()
 
+    # usuarios
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario TEXT UNIQUE,
+        password TEXT,
+        rol TEXT,
+        nombre TEXT
+    )
+    """)
+
+    # turnos
     c.execute("""
     CREATE TABLE IF NOT EXISTS turnos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,34 +56,36 @@ def init_db():
     )
     """)
 
+    # admin default
+    c.execute("SELECT * FROM usuarios WHERE usuario='admin'")
+    if not c.fetchone():
+        c.execute("""
+        INSERT INTO usuarios (usuario, password, rol, nombre)
+        VALUES (?, ?, ?, ?)
+        """, (
+            "admin",
+            generate_password_hash("admin123"),
+            "admin",
+            "Administrador"
+        ))
+
     conn.commit()
     conn.close()
 
 init_db()
 
- # =========================
-# LOGIN SIMPLE Y ROBUSTO
 # =========================
+# AUTH
+# =========================
+def login_required():
+    return "usuario" in session
 
-USUARIOS = {
-    "juan": {
-        "password": "1234",
-        "nombre": "Dr. Juan Pérez"
-    },
-    "lopez": {
-        "password": "1234",
-        "nombre": "Dr. Esteban López"
-    },
-    "cardio": {
-        "password": "1234",
-        "nombre": "Dr. Cardiólogo"
-    },
-    "gine": {
-        "password": "1234",
-        "nombre": "Dra. Ginecóloga"
-    }
-}
+def admin_required():
+    return session.get("rol") == "admin"
 
+# =========================
+# LOGIN
+# =========================
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
@@ -73,24 +94,34 @@ def login():
         usuario = request.form.get("usuario")
         password = request.form.get("password")
 
-        if usuario in USUARIOS:
-            if USUARIOS[usuario]["password"] == password:
-                session["doctor"] = USUARIOS[usuario]["nombre"]
-                session["usuario"] = usuario
-                return redirect("/calendario")
-            else:
-                error = "Contraseña incorrecta"
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT * FROM usuarios WHERE usuario=?", (usuario,))
+        user = c.fetchone()
+        conn.close()
+
+        if user and check_password_hash(user[2], password):
+            session.permanent = True
+            session["usuario"] = user[1]
+            session["rol"] = user[3]
+            session["nombre"] = user[4]
+            return redirect("/calendario")
         else:
-            error = "Usuario no existe"
+            error = "Credenciales incorrectas"
 
     return render_template("login.html", error=error)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
 
 # =========================
 # TRIAGE ULTRA COMPLETO
 # =========================
 def triage(texto):
 
-    texto_lower = texto.lower()
+    t = texto.lower()
 
     # =========================
     # IA
@@ -98,16 +129,14 @@ def triage(texto):
     if IA_ACTIVA:
         try:
             prompt = f"""
-Sos un médico experto en triage clínico.
+Actuás como médico clínico experto en triage hospitalario.
 
 Clasificá los síntomas en UNA especialidad EXACTA:
 
 Especialidades:
-- clínica médica
 - cardiología
 - neumonología
 - gastroenterología
-- nefrología
 - neurología
 - traumatología
 - dermatología
@@ -117,63 +146,41 @@ Especialidades:
 - obstetricia
 - urología
 - endocrinología
-- pediatría
+- nefrología
 - psiquiatría
-- odontología
+- pediatría
+- infectología
+- oncología
+- hematología
+- reumatología
+- clínica médica
 
-Reglas estrictas:
+Reglas estrictas por síntomas:
 
-CARDIOLOGÍA:
-dolor en el pecho, palpitaciones, presión en pecho, falta de aire con esfuerzo
-
-NEUMONOLOGÍA:
-tos persistente, dificultad respiratoria, asma, bronquitis
-
-GASTRO:
-dolor abdominal, diarrea, vómitos, acidez
-
-GINECOLOGÍA:
-flujo vaginal, dolor pélvico, menstruación irregular, infecciones
-
-OBSTETRICIA:
-embarazo, contracciones, sangrado embarazo
-
-TRAUMATOLOGÍA:
-golpes, fracturas, dolor muscular, articulaciones
-
-DERMATOLOGÍA:
-manchas, sarpullido, picazón, piel
-
-NEUROLOGÍA:
-mareos, convulsiones, pérdida de memoria
-
-OFTALMOLOGÍA:
-visión borrosa, dolor ocular
-
-OTORRINO:
-dolor oído, garganta, nariz
-
-UROLOGÍA:
-dolor al orinar, infecciones urinarias
-
-ENDOCRINO:
-diabetes, tiroides
-
-ODONTOLOGÍA:
-dolor dental
-
-PSIQUIATRÍA:
-ansiedad, depresión
-
-URGENCIA:
-ALTA → riesgo de vida
-MEDIA → necesita atención
-BAJA → leve
+CARDIO: pecho, presión, palpitaciones
+NEUMO: tos, falta aire
+GASTRO: dolor abdominal, vómitos, diarrea
+NEURO: mareos, convulsiones
+TRAUMA: golpes, fracturas
+DERMA: piel, manchas
+OFTALMO: visión
+OTORRINO: oído, garganta
+GINE: flujo, menstruación
+OBSTETRICIA: embarazo
+UROLOGÍA: orina, ardor
+ENDOCRINO: diabetes
+NEFRO: riñón
+PSIQUIATRÍA: ansiedad
+PEDIATRÍA: niños
+INFECTO: fiebre infecciosa
+ONCO: tumores
+HEMATO: sangre
+REUMA: articulaciones
 
 Devolver JSON:
 
 {{
-"urgencia":"...",
+"urgencia":"BAJA|MEDIA|ALTA",
 "especialidad":"...",
 "recomendaciones":["...","...","...","...","..."]
 }}
@@ -182,43 +189,68 @@ Síntomas:
 {texto}
 """
             response = genai.GenerativeModel("gemini-1.5-flash").generate_content(prompt)
-            data = json.loads(response.text)
-            return data
+            return json.loads(response.text)
 
-        except Exception as e:
-            print("Error IA:", e)
+        except:
+            pass
 
     # =========================
-    # FALLBACK INTELIGENTE
+    # FALLBACK ULTRA DETALLADO
     # =========================
-
-    t = texto_lower
 
     # CARDIO
-    if any(x in t for x in ["pecho", "palpitaciones", "presión pecho"]):
+    if any(x in t for x in ["pecho", "palpitaciones", "presion pecho", "infarto"]):
         return {
             "urgencia": "ALTA",
             "especialidad": "cardiología",
             "recomendaciones": [
                 "Ir a guardia urgente",
-                "No realizar esfuerzo",
+                "No hacer esfuerzo",
                 "Mantenerse acompañado",
-                "Controlar respiración",
-                "Evitar estrés"
+                "Control respiración",
+                "Llamar emergencia"
+            ]
+        }
+
+    # NEUMO
+    if any(x in t for x in ["tos", "falta aire", "asma"]):
+        return {
+            "urgencia": "MEDIA",
+            "especialidad": "neumonología",
+            "recomendaciones": [
+                "Evitar esfuerzo",
+                "Ambiente ventilado",
+                "Hidratarse",
+                "Control respiración",
+                "Consultar médico"
             ]
         }
 
     # GINE
-    if any(x in t for x in ["flujo", "vaginal", "menstruación", "útero"]):
+    if any(x in t for x in ["flujo", "vaginal", "menstruacion", "ovario"]):
         return {
             "urgencia": "MEDIA",
             "especialidad": "ginecología",
             "recomendaciones": [
-                "Evitar relaciones sexuales",
-                "Mantener higiene íntima",
-                "Observar cambios",
+                "Evitar relaciones",
+                "Higiene íntima",
                 "No automedicarse",
-                "Consultar especialista"
+                "Observar síntomas",
+                "Consultar ginecólogo"
+            ]
+        }
+
+    # OBSTETRICIA
+    if any(x in t for x in ["embarazo", "contracciones"]):
+        return {
+            "urgencia": "ALTA",
+            "especialidad": "obstetricia",
+            "recomendaciones": [
+                "Ir a guardia",
+                "Reposo",
+                "No viajar",
+                "Acompañamiento",
+                "Control médico urgente"
             ]
         }
 
@@ -230,14 +262,14 @@ Síntomas:
             "recomendaciones": [
                 "Aplicar hielo",
                 "Reposo",
-                "Inmovilizar zona",
+                "Inmovilizar",
                 "Evitar esfuerzo",
                 "Consultar médico"
             ]
         }
 
     # GASTRO
-    if any(x in t for x in ["dolor estómago", "diarrea", "vomito"]):
+    if any(x in t for x in ["dolor abdomen", "diarrea", "vomito"]):
         return {
             "urgencia": "MEDIA",
             "especialidad": "gastroenterología",
@@ -245,8 +277,22 @@ Síntomas:
                 "Dieta liviana",
                 "Hidratación",
                 "Evitar grasas",
-                "Controlar síntomas",
+                "Control síntomas",
                 "Consultar médico"
+            ]
+        }
+
+    # DERMATO
+    if any(x in t for x in ["piel", "manchas", "sarpullido"]):
+        return {
+            "urgencia": "BAJA",
+            "especialidad": "dermatología",
+            "recomendaciones": [
+                "Evitar sol",
+                "No rascar",
+                "Higiene",
+                "Usar cremas",
+                "Consultar dermatólogo"
             ]
         }
 
@@ -266,10 +312,12 @@ Síntomas:
 # =========================
 # TURNOS
 # =========================
-def guardar_turno(data):
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
+@app.route("/confirmar", methods=["POST"])
+def confirmar():
+    data = request.json
 
+    conn = get_db()
+    c = conn.cursor()
     c.execute("""
     INSERT INTO turnos (nombre, dni, sintomas, especialidad, doctor, fecha, urgencia)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -282,9 +330,10 @@ def guardar_turno(data):
         data["fecha"],
         data["urgencia"]
     ))
-
     conn.commit()
     conn.close()
+
+    return jsonify({"ok": True})
 
 # =========================
 # CALENDARIO
@@ -292,64 +341,45 @@ def guardar_turno(data):
 @app.route("/calendario")
 def calendario():
 
-    if "doctor" not in session:
+    if not login_required():
         return redirect("/login")
 
-    doctor = session["doctor"]
-
-    conn = sqlite3.connect(DB)
+    conn = get_db()
     c = conn.cursor()
 
-    c.execute("SELECT * FROM turnos WHERE doctor=?", (doctor,))
+    if session["rol"] == "admin":
+        c.execute("SELECT * FROM turnos")
+    else:
+        c.execute("SELECT * FROM turnos WHERE doctor=?", (session["nombre"],))
+
     turnos = c.fetchall()
-
     conn.close()
 
-    return render_template("calendario.html", turnos=turnos, doctor=doctor)
+    return render_template("calendario.html", turnos=turnos)
 
 # =========================
-# API
+# ADMIN USUARIOS
 # =========================
-@app.route("/triage", methods=["POST"])
-def triage_api():
-    texto = request.json.get("texto")
-    data = triage(texto)
-    return jsonify(data)
+@app.route("/usuarios")
+def usuarios():
 
-@app.route("/confirmar", methods=["POST"])
-def confirmar():
-    guardar_turno(request.json)
-    return jsonify({"ok": True})
+    if not admin_required():
+        return redirect("/calendario")
 
-@app.route("/eliminar/<int:id>")
-def eliminar(id):
-    conn = sqlite3.connect(DB)
+    conn = get_db()
     c = conn.cursor()
-    c.execute("DELETE FROM turnos WHERE id=?", (id,))
-    conn.commit()
-    conn.close()
-    return redirect("/calendario")
-
-@app.route("/editar/<int:id>", methods=["POST"])
-def editar(id):
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    nueva_fecha = request.form.get("fecha")
-
-    c.execute("UPDATE turnos SET fecha=? WHERE id=?", (nueva_fecha, id))
-
-    conn.commit()
+    c.execute("SELECT id, usuario, rol, nombre FROM usuarios")
+    lista = c.fetchall()
     conn.close()
 
-    return redirect("/calendario")
+    return render_template("usuarios.html", usuarios=lista)
 
 # =========================
 # HOME
 # =========================
 @app.route("/")
 def home():
-    return render_template("index.html")
+    return redirect("/login")
 
 # =========================
 # RUN
