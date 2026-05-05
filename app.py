@@ -115,7 +115,7 @@ def generar_turnos(especialidad):
 # =========================
 # TRIAGE (SIN IA EXTERNA)
 # =========================
-  def triage(texto):
+def triage(texto):
 
     try:
         import google.generativeai as genai
