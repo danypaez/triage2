@@ -289,7 +289,6 @@ Síntomas:
                 "Consultar si no mejora"
             ]
         }
-
 # =========================
 # GUARDAR TURNO
 # =========================
