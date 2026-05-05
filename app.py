@@ -115,75 +115,101 @@ def generar_turnos(especialidad):
 # =========================
 # TRIAGE (SIN IA EXTERNA)
 # =========================
-def triage(texto):
+  def triage(texto):
 
-    t = texto.lower()
+    try:
+        import google.generativeai as genai
 
-    if "dolor pecho" in t or "no puedo respirar" in t:
-        return {
-            "urgencia": "ALTA",
-            "especialidad": "clínica médica",
-            "recomendaciones": [
-                "Acudir inmediatamente a una guardia médica",
-                "No quedarse solo",
-                "Evitar esfuerzos físicos"
-            ]
-        }
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-    elif "piel" in t or "mancha" in t:
-        return {
-            "urgencia": "MEDIA",
-            "especialidad": "dermatología",
-            "recomendaciones": [
-                "Evitar exposición al sol",
-                "Mantener la zona limpia",
-                "No automedicarse"
-            ]
-        }
+        prompt = f"""
+Sos un asistente médico de triage.
 
-    elif "golpe" in t or "dolor muscular" in t:
-        return {
-            "urgencia": "MEDIA",
-            "especialidad": "traumatología",
-            "recomendaciones": [
-                "Reposo",
-                "Aplicar frío local",
-                "Evitar esfuerzos"
-            ]
-        }
+Clasificá los síntomas en UNA especialidad:
 
-    elif "vista" in t or "ojos" in t:
-        return {
-            "urgencia": "MEDIA",
-            "especialidad": "oftalmología",
-            "recomendaciones": [
-                "Evitar pantallas",
-                "No frotar los ojos",
-                "Consultar si empeora"
-            ]
-        }
+- clínica médica
+- traumatología
+- ginecología
+- dermatología
+- oftalmología
+- odontología
 
-    elif "diente" in t:
-        return {
-            "urgencia": "MEDIA",
-            "especialidad": "odontología",
-            "recomendaciones": [
-                "Evitar alimentos duros",
-                "Mantener higiene bucal",
-                "No aplicar calor"
-            ]
-        }
+También indicá nivel de urgencia:
+BAJA, MEDIA o ALTA
 
-    else:
-        return {
-            "urgencia": "BAJA",
-            "especialidad": "clínica médica",
-            "recomendaciones": [
-                "Descansar",
-                "Hidratarse",
-                "Controlar evolución"
-            ]
-        }
+Y agregá hasta 3 recomendaciones simples.
+
+Respondé SOLO JSON válido:
+
+{{
+  "urgencia": "...",
+  "especialidad": "...",
+  "recomendaciones": ["...", "..."]
+}}
+
+Síntomas:
+{texto}
+"""
+
+        response = genai.GenerativeModel("gemini-1.5-flash").generate_content(prompt)
+
+        raw = response.text.strip()
+
+        data = json.loads(raw)
+
+        return data
+
+    except Exception as e:
+        print("⚠️ Error IA, usando fallback:", e)
+
+        # =========================
+        # FALLBACK LOCAL (seguro)
+        # =========================
+        t = texto.lower()
+
+        if "pecho" in t or "no puedo respirar" in t:
+            return {
+                "urgencia": "ALTA",
+                "especialidad": "clínica médica",
+                "recomendaciones": [
+                    "Acudir inmediatamente a una guardia médica",
+                    "No quedarse solo",
+                    "Evitar esfuerzos"
+                ]
+            }
+
+        elif "piel" in t:
+            return {
+                "urgencia": "MEDIA",
+                "especialidad": "dermatología",
+                "recomendaciones": [
+                    "Evitar el sol",
+                    "No rascarse",
+                    "Mantener higiene"
+                ]
+            }
+
+        elif "golpe" in t or "dolor muscular" in t:
+            return {
+                "urgencia": "MEDIA",
+                "especialidad": "traumatología",
+                "recomendaciones": [
+                    "Reposo",
+                    "Aplicar frío",
+                    "Evitar esfuerzo"
+                ]
+            }
+
+        else:
+            return {
+                "urgencia": "BAJA",
+                "especialidad": "clínica médica",
+                "recomendaciones": [
+                    "Descansar",
+                    "Hidratarse",
+                    "Controlar evolución"
+                ]
+            }
 
 # =========================
 # GUARDAR TURNO
