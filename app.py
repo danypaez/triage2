@@ -124,64 +124,184 @@ def generar_turnos(especialidad):
 def triage(texto):
 
     try:
+        import google.generativeai as genai
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
         model = genai.GenerativeModel("gemini-1.5-flash")
 
         prompt = f"""
-Sos un asistente de triage médico.
+Sos un sistema de TRIAGE MÉDICO CLÍNICO ESTRICTO.
 
-Clasificá correctamente según síntomas en UNA especialidad:
+⚠️ OBJETIVO:
+Clasificar los síntomas en UNA sola especialidad médica correcta, evitando usar "clínica médica" salvo que sea realmente general.
 
-- clínica médica
-- traumatología
-- ginecología
-- dermatología
-- oftalmología
-- odontología
+========================
+ESPECIALIDADES Y CRITERIOS
+========================
 
-IMPORTANTE:
-- Síntomas femeninos → ginecología
-- Dolor muscular/golpes → traumatología
-- Problemas de piel → dermatología
-- Ojos → oftalmología
-- Dientes → odontología
-- General → clínica médica
+- cardiología:
+  dolor en el pecho, palpitaciones, presión alta, arritmias, falta de aire cardíaca
 
-También:
-- urgencia: BAJA, MEDIA o ALTA
-- 5 recomendaciones concretas
+- neumonología:
+  tos, dificultad respiratoria, asma, bronquitis, neumonía
 
-Respondé SOLO JSON válido:
+- gastroenterología:
+  dolor abdominal, diarrea, vómitos, acidez, gastritis, hígado, colon
+
+- nefrología:
+  problemas renales, dolor lumbar renal, orina anormal, retención líquidos
+
+- urología:
+  problemas urinarios, próstata, infecciones urinarias, dolor al orinar
+
+- ginecología:
+  dolor pélvico, flujo vaginal, menstruación, infecciones ginecológicas
+
+- obstetricia:
+  embarazo, controles prenatales, contracciones, sangrado en embarazo
+
+- traumatología:
+  golpes, fracturas, esguinces, dolor muscular, articulaciones
+
+- neurología:
+  mareos, convulsiones, pérdida de memoria, dolores de cabeza severos
+
+- dermatología:
+  manchas, sarpullido, picazón, acné, lesiones en piel
+
+- oftalmología:
+  visión borrosa, dolor ocular, irritación ojos
+
+- otorrinolaringología:
+  dolor de oído, garganta, nariz, sinusitis
+
+- odontología:
+  dolor dental, encías, infecciones bucales
+
+- endocrinología:
+  diabetes, tiroides, hormonas, obesidad
+
+- psiquiatría:
+  ansiedad severa, depresión, ataques de pánico
+
+- clínica médica:
+  SOLO si los síntomas son generales, inespecíficos o múltiples sistemas
+
+========================
+REGLAS ESTRICTAS
+========================
+
+1. ELEGIR SOLO UNA especialidad.
+2. NO usar clínica médica si hay otra opción clara.
+3. Priorizar el síntoma principal.
+4. Si hay síntomas femeninos → ginecología u obstetricia.
+5. Si hay múltiples sistemas, elegir el predominante.
+
+========================
+URGENCIA
+========================
+
+ALTA:
+- dolor de pecho intenso
+- dificultad para respirar
+- pérdida de conocimiento
+- sangrado importante
+- convulsiones
+
+MEDIA:
+- dolor moderado
+- fiebre persistente
+- síntomas que limitan actividad
+
+BAJA:
+- síntomas leves o iniciales
+
+========================
+RESPUESTA
+========================
+
+Devolver SOLO JSON válido:
 
 {{
-  "urgencia": "...",
+  "urgencia": "BAJA | MEDIA | ALTA",
   "especialidad": "...",
   "recomendaciones": ["...", "...", "...", "...", "..."]
 }}
 
-Síntomas:
+Las recomendaciones deben ser:
+- claras
+- concretas
+- seguras
+- máximo 5
+
+========================
+SÍNTOMAS DEL PACIENTE
+========================
+
 {texto}
 """
 
         response = model.generate_content(prompt)
-        data = json.loads(response.text.strip())
+
+        raw = response.text.strip()
+
+        data = json.loads(raw)
+
+        # seguridad: asegurar 5 recomendaciones
+        if len(data.get("recomendaciones", [])) < 5:
+            data["recomendaciones"] += [
+                "Mantener reposo",
+                "Hidratarse adecuadamente",
+                "Evitar automedicación",
+                "Consultar si empeora",
+                "Control médico"
+            ]
+            data["recomendaciones"] = data["recomendaciones"][:5]
 
         return data
 
     except Exception as e:
-        print("Error IA:", e)
+        print("⚠️ Error IA:", e)
+
+        # =========================
+        # FALLBACK INTELIGENTE
+        # =========================
+        t = texto.lower()
+
+        if "pecho" in t:
+            esp = "cardiología"
+        elif "respirar" in t or "tos" in t:
+            esp = "neumonología"
+        elif "panza" in t or "abdomen" in t:
+            esp = "gastroenterología"
+        elif "riñon" in t or "orina" in t:
+            esp = "nefrología"
+        elif "embarazo" in t:
+            esp = "obstetricia"
+        elif "menstru" in t or "flujo" in t:
+            esp = "ginecología"
+        elif "golpe" in t or "muscular" in t:
+            esp = "traumatología"
+        elif "piel" in t:
+            esp = "dermatología"
+        elif "ojo" in t:
+            esp = "oftalmología"
+        elif "diente" in t:
+            esp = "odontología"
+        else:
+            esp = "clínica médica"
 
         return {
             "urgencia": "MEDIA",
-            "especialidad": "clínica médica",
+            "especialidad": esp,
             "recomendaciones": [
-                "Descansar",
-                "Hidratarse",
+                "Reposo",
+                "Hidratación",
                 "Evitar esfuerzo",
-                "Controlar síntomas",
+                "Controlar evolución",
                 "Consultar médico"
             ]
         }
-
 # =========================
 # GUARDAR TURNO
 # =========================
