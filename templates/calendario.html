@@ -1,28 +1,91 @@
- <!DOCTYPE html>
-<html>
+<!DOCTYPE html>
+<html lang="es">
 <head>
+    <meta charset="UTF-8">
     <title>Calendario</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+        }
+
+        header {
+            background: #4facfe;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .container {
+            padding: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        th {
+            background: #4facfe;
+            color: white;
+            padding: 12px;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            text-align: center;
+        }
+
+        tr:hover {
+            background: #f1f7ff;
+        }
+
+        .empty {
+            text-align: center;
+            margin-top: 40px;
+            color: #777;
+        }
+    </style>
 </head>
+
 <body>
 
-<h2>Turnos</h2>
+<header>
+    📅 Turnos Médicos
+</header>
 
-<table border="1">
-<tr>
-    <th>Paciente</th>
-    <th>Doctor</th>
-    <th>Fecha</th>
-</tr>
+<div class="container">
 
-{% for t in turnos %}
-<tr>
-    <td>{{ t[0] }}</td>
-    <td>{{ t[1] }}</td>
-    <td>{{ t[2] }}</td>
-</tr>
-{% endfor %}
+    {% if turnos %}
+    <table>
+        <tr>
+            <th>Paciente</th>
+            <th>Doctor</th>
+            <th>Fecha</th>
+        </tr>
 
-</table>
+        {% for t in turnos %}
+        <tr>
+            <td>{{ t[0] }}</td>
+            <td>{{ t[1] }}</td>
+            <td>{{ t[2] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+        <div class="empty">No hay turnos cargados</div>
+    {% endif %}
+
+</div>
 
 </body>
 </html>
