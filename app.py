@@ -123,29 +123,52 @@ def triage(texto):
         genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
         prompt = f"""
-Sos un asistente médico de triage.
+Sos un sistema de TRIAGE MÉDICO.
 
-Clasificá los síntomas en UNA especialidad:
+Tu tarea es CLASIFICAR los síntomas en UNA sola especialidad médica.
 
-- clínica médica
-- traumatología
-- ginecología
-- dermatología
-- oftalmología
-- odontología
+⚠️ IMPORTANTE:
+- NO usar "clínica médica" si hay una especialidad más específica
+- SOLO usar clínica médica si es algo general o ambiguo
 
-También indicá nivel de urgencia:
-BAJA, MEDIA o ALTA
+ESPECIALIDADES:
 
-Y agregá hasta 3 recomendaciones simples.
+- clínica médica → fiebre, malestar general, gripe, cansancio, síntomas difusos
+- traumatología → golpes, caídas, dolor muscular, huesos, articulaciones
+- ginecología → flujo vaginal, dolor pélvico, menstruación, embarazo, sangrado vaginal, infecciones íntimas
+- dermatología → manchas, erupciones, picazón, acné, problemas en piel
+- oftalmología → visión borrosa, dolor ocular, irritación en ojos
+- odontología → dolor de muelas, encías, infecciones dentales
 
-Respondé SOLO JSON válido:
+URGENCIA:
+- ALTA → riesgo inmediato (dolor intenso, sangrado fuerte, dificultad respiratoria, desmayo)
+- MEDIA → requiere consulta pronta
+- BAJA → leve o controlable
+
+⚠️ REGLAS:
+- Elegir SIEMPRE la especialidad MÁS específica posible
+- NO repetir especialidades incorrectas
+- NO inventar texto fuera del JSON
+
+DEVOLVER SOLO JSON:
 
 {{
-  "urgencia": "...",
+  "urgencia": "BAJA | MEDIA | ALTA",
   "especialidad": "...",
-  "recomendaciones": ["...", "..."]
+  "recomendaciones": [
+    "...",
+    "...",
+    "...",
+    "...",
+    "..."
+  ]
 }}
+
+RECOMENDACIONES:
+- Deben ser prácticas, claras y seguras
+- Máximo 5
+- No repetir
+- No cosas obvias genéricas
 
 Síntomas:
 {texto}
@@ -155,6 +178,9 @@ Síntomas:
 
         raw = response.text.strip()
 
+        # Limpieza por si viene con ```json
+        raw = raw.replace("```json", "").replace("```", "").strip()
+
         data = json.loads(raw)
 
         return data
@@ -163,53 +189,106 @@ Síntomas:
         print("⚠️ Error IA, usando fallback:", e)
 
         # =========================
-        # FALLBACK LOCAL (seguro)
+        # FALLBACK MEJORADO
         # =========================
         t = texto.lower()
 
-        if "pecho" in t or "no puedo respirar" in t:
+        # 🚨 URGENCIAS
+        if "no puedo respirar" in t or "dolor en el pecho" in t:
             return {
                 "urgencia": "ALTA",
                 "especialidad": "clínica médica",
                 "recomendaciones": [
                     "Acudir inmediatamente a una guardia médica",
                     "No quedarse solo",
-                    "Evitar esfuerzos"
+                    "Evitar cualquier esfuerzo físico",
+                    "Mantenerse sentado o semi incorporado",
+                    "Llamar a emergencias"
                 ]
             }
 
-        elif "piel" in t:
+        # 👩 GINECOLOGÍA
+        if any(x in t for x in ["flujo", "vaginal", "menstru", "embarazo", "ovario", "útero", "pélvico"]):
             return {
                 "urgencia": "MEDIA",
-                "especialidad": "dermatología",
+                "especialidad": "ginecología",
                 "recomendaciones": [
-                    "Evitar el sol",
-                    "No rascarse",
-                    "Mantener higiene"
+                    "Evitar relaciones sexuales hasta evaluación médica",
+                    "Mantener higiene íntima adecuada",
+                    "No automedicarse",
+                    "Registrar síntomas y duración",
+                    "Consultar con especialista lo antes posible"
                 ]
             }
 
-        elif "golpe" in t or "dolor muscular" in t:
+        # 🦴 TRAUMATOLOGÍA
+        if any(x in t for x in ["golpe", "caída", "dolor muscular", "hueso", "torcedura"]):
             return {
                 "urgencia": "MEDIA",
                 "especialidad": "traumatología",
                 "recomendaciones": [
-                    "Reposo",
-                    "Aplicar frío",
-                    "Evitar esfuerzo"
+                    "Aplicar frío en la zona afectada",
+                    "Evitar movimientos bruscos",
+                    "Mantener reposo",
+                    "Elevar la zona si hay inflamación",
+                    "Consultar si el dolor persiste"
                 ]
             }
 
-        else:
+        # 🧴 DERMATOLOGÍA
+        if any(x in t for x in ["piel", "mancha", "sarpullido", "picazón"]):
             return {
-                "urgencia": "BAJA",
-                "especialidad": "clínica médica",
+                "urgencia": "MEDIA",
+                "especialidad": "dermatología",
                 "recomendaciones": [
-                    "Descansar",
-                    "Hidratarse",
-                    "Controlar evolución"
+                    "Evitar exposición al sol",
+                    "No rascar la zona afectada",
+                    "Mantener la piel limpia y seca",
+                    "Usar ropa suelta",
+                    "Consultar si empeora"
                 ]
             }
+
+        # 👁 OFTALMOLOGÍA
+        if any(x in t for x in ["ojo", "visión", "lagrimeo", "ardor ocular"]):
+            return {
+                "urgencia": "MEDIA",
+                "especialidad": "oftalmología",
+                "recomendaciones": [
+                    "Evitar frotarse los ojos",
+                    "Descansar la vista",
+                    "Evitar pantallas",
+                    "Usar lágrimas artificiales si es necesario",
+                    "Consultar especialista"
+                ]
+            }
+
+        # 🦷 ODONTOLOGÍA
+        if any(x in t for x in ["muela", "diente", "encía"]):
+            return {
+                "urgencia": "MEDIA",
+                "especialidad": "odontología",
+                "recomendaciones": [
+                    "Evitar alimentos muy fríos o calientes",
+                    "Mantener higiene bucal",
+                    "No masticar del lado afectado",
+                    "Usar analgésico si es necesario",
+                    "Consultar odontólogo"
+                ]
+            }
+
+        # 🏥 DEFAULT
+        return {
+            "urgencia": "BAJA",
+            "especialidad": "clínica médica",
+            "recomendaciones": [
+                "Descansar adecuadamente",
+                "Mantenerse hidratado",
+                "Controlar evolución de síntomas",
+                "Evitar automedicación",
+                "Consultar si no mejora"
+            ]
+        }
 
 # =========================
 # GUARDAR TURNO
