@@ -1,188 +1,214 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Calendario de Turnos</title>
+    <title>Calendario Médico</title>
 
-<style>
-body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #f4f6f9;
-}
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f9;
+            padding: 20px;
+        }
 
-header {
-    background: #4facfe;
-    color: white;
-    padding: 15px;
-    text-align: center;
-    font-size: 22px;
-    font-weight: bold;
-}
+        h1 {
+            text-align: center;
+        }
 
-.container {
-    padding: 30px;
-}
+        .filtro {
+            text-align: center;
+            margin-bottom: 20px;
+        }
 
-.top-bar {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-}
+        select {
+            padding: 8px;
+            font-size: 14px;
+        }
 
-select {
-    padding: 10px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-    min-width: 200px;
-}
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
 
-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: white;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-}
+        th {
+            background: #007bff;
+            color: white;
+            padding: 10px;
+        }
 
-th {
-    background: #4facfe;
-    color: white;
-    padding: 12px;
-    font-size: 14px;
-}
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
 
-td {
-    padding: 12px;
-    border-bottom: 1px solid #eee;
-    text-align: center;
-    vertical-align: top;
-}
+        tr:hover {
+            background: #f1f1f1;
+        }
 
-td:nth-child(3) {
-    text-align: left;
-    max-width: 300px;
-    font-size: 14px;
-    color: #555;
-}
+        .acciones button {
+            margin: 2px;
+            padding: 5px 8px;
+            border: none;
+            cursor: pointer;
+        }
 
-tr:hover {
-    background: #f1f7ff;
-}
+        .editar {
+            background: #ffc107;
+        }
 
-.badge {
-    padding: 6px 10px;
-    border-radius: 6px;
-    color: white;
-    font-size: 12px;
-    display: inline-block;
-}
+        .borrar {
+            background: #dc3545;
+            color: white;
+        }
 
-.dr {
-    background: #28a745;
-}
+        .modal {
+            display: none;
+            position: fixed;
+            top: 20%;
+            left: 30%;
+            width: 40%;
+            background: white;
+            padding: 20px;
+            border: 2px solid #333;
+        }
 
-.empty {
-    text-align: center;
-    margin-top: 40px;
-    color: #777;
-    font-size: 16px;
-}
+        .modal input {
+            width: 100%;
+            margin: 5px 0;
+            padding: 8px;
+        }
 
-/* Responsive */
-@media (max-width: 768px) {
-    table, thead, tbody, th, td, tr {
-        display: block;
-    }
-
-    tr {
-        margin-bottom: 15px;
-        background: white;
-        border-radius: 10px;
-        padding: 10px;
-    }
-
-    th {
-        display: none;
-    }
-
-    td {
-        text-align: left;
-        padding: 8px;
-        border: none;
-    }
-
-    td::before {
-        font-weight: bold;
-        display: block;
-        margin-bottom: 3px;
-    }
-
-    td:nth-child(1)::before { content: "Paciente"; }
-    td:nth-child(2)::before { content: "DNI"; }
-    td:nth-child(3)::before { content: "Síntomas"; }
-    td:nth-child(4)::before { content: "Médico"; }
-    td:nth-child(5)::before { content: "Fecha"; }
-}
-</style>
-
+        .modal button {
+            margin-top: 10px;
+        }
+    </style>
 </head>
-
 <body>
 
-<header>
-📅 Gestión de Turnos Médicos
-</header>
+<h1>📅 Calendario de Turnos</h1>
 
-<div class="container">
-
-<div class="top-bar">
-
-    <!-- FILTRO POR MÉDICO -->
-    <form method="GET" action="/calendario">
-        <select name="doctor" onchange="this.form.submit()">
-            <option value="">Todos los médicos</option>
-
-            {% for m in medicos %}
-                <option value="{{ m }}" {% if doctor_actual == m %}selected{% endif %}>
-                    {{ m }}
-                </option>
-            {% endfor %}
-        </select>
-    </form>
-
+<div class="filtro">
+    <label>Filtrar por médico:</label>
+    <select id="filtroMedico" onchange="cargarTurnos()">
+        <option value="">Todos</option>
+        <option>Dr. Juan Pérez</option>
+        <option>Dr. Esteban López</option>
+    </select>
 </div>
 
-{% if turnos %}
 <table>
-<tr>
-    <th>Paciente</th>
-    <th>DNI</th>
-    <th>Síntomas</th>
-    <th>Médico</th>
-    <th>Fecha</th>
-</tr>
-
-{% for t in turnos %}
-<tr>
-    <td>{{ t[0] }}</td>
-    <td>{{ t[1] }}</td>
-    <td>{{ t[2] }}</td>
-    <td><span class="badge dr">{{ t[3] }}</span></td>
-    <td>{{ t[4] }}</td>
-</tr>
-{% endfor %}
+    <thead>
+        <tr>
+            <th>Fecha</th>
+            <th>Médico</th>
+            <th>Paciente</th>
+            <th>DNI</th>
+            <th>Síntomas</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody id="tablaTurnos"></tbody>
 </table>
 
-{% else %}
-<div class="empty">
-No hay turnos cargados
-</div>
-{% endif %}
+<!-- MODAL EDITAR -->
+<div class="modal" id="modalEditar">
+    <h3>Editar Turno</h3>
 
+    <input type="hidden" id="edit_id">
+
+    <input id="edit_nombre" placeholder="Nombre">
+    <input id="edit_dni" placeholder="DNI">
+    <input id="edit_sintomas" placeholder="Síntomas">
+    <input id="edit_doctor" placeholder="Doctor">
+    <input id="edit_fecha" placeholder="Fecha">
+
+    <button onclick="guardarEdicion()">Guardar</button>
+    <button onclick="cerrarModal()">Cancelar</button>
 </div>
+
+<script>
+async function cargarTurnos() {
+
+    const medico = document.getElementById("filtroMedico").value;
+
+    const res = await fetch("/turnos_data");
+    const data = await res.json();
+
+    const tabla = document.getElementById("tablaTurnos");
+    tabla.innerHTML = "";
+
+    data.forEach(t => {
+
+        if (medico && t.doctor !== medico) return;
+
+        tabla.innerHTML += `
+            <tr>
+                <td>${t.fecha}</td>
+                <td>${t.doctor}</td>
+                <td>${t.nombre}</td>
+                <td>${t.dni}</td>
+                <td>${t.sintomas}</td>
+                <td class="acciones">
+                    <button class="editar" onclick='editar(${JSON.stringify(t)})'>✏️</button>
+                    <button class="borrar" onclick="borrar(${t.id})">🗑</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function editar(t) {
+    document.getElementById("modalEditar").style.display = "block";
+
+    document.getElementById("edit_id").value = t.id;
+    document.getElementById("edit_nombre").value = t.nombre;
+    document.getElementById("edit_dni").value = t.dni;
+    document.getElementById("edit_sintomas").value = t.sintomas;
+    document.getElementById("edit_doctor").value = t.doctor;
+    document.getElementById("edit_fecha").value = t.fecha;
+}
+
+function cerrarModal() {
+    document.getElementById("modalEditar").style.display = "none";
+}
+
+async function guardarEdicion() {
+
+    const data = {
+        id: document.getElementById("edit_id").value,
+        nombre: document.getElementById("edit_nombre").value,
+        dni: document.getElementById("edit_dni").value,
+        sintomas: document.getElementById("edit_sintomas").value,
+        doctor: document.getElementById("edit_doctor").value,
+        fecha: document.getElementById("edit_fecha").value,
+        especialidad: "clínica médica"
+    };
+
+    await fetch("/editar_turno", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
+    });
+
+    cerrarModal();
+    cargarTurnos();
+}
+
+async function borrar(id) {
+
+    if (!confirm("¿Eliminar turno?")) return;
+
+    await fetch("/borrar_turno", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({id})
+    });
+
+    cargarTurnos();
+}
+
+cargarTurnos();
+</script>
 
 </body>
 </html>
