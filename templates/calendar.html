@@ -1,67 +1,28 @@
-<!DOCTYPE html>
-<html lang="es">
+ <!DOCTYPE html>
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Agenda Médica</title>
-
-<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-
-<style>
-body {
-    font-family: Arial;
-    background: #0f1720;
-    color: white;
-    padding: 20px;
-}
-
-#calendar {
-    max-width: 1000px;
-    margin: auto;
-    background: white;
-    color: black;
-    border-radius: 10px;
-    padding: 10px;
-}
-</style>
+    <title>Calendario</title>
 </head>
-
 <body>
 
-<h2 style="text-align:center;">📅 Agenda de Turnos</h2>
+<h2>Turnos</h2>
 
-<div id="calendar"></div>
+<table border="1">
+<tr>
+    <th>Paciente</th>
+    <th>Doctor</th>
+    <th>Fecha</th>
+</tr>
 
-<script>
+{% for t in turnos %}
+<tr>
+    <td>{{ t[0] }}</td>
+    <td>{{ t[1] }}</td>
+    <td>{{ t[2] }}</td>
+</tr>
+{% endfor %}
 
-function convertirFecha(fechaStr) {
-    const [fecha, hora] = fechaStr.split(" ");
-    const [dia, mes] = fecha.split("/");
-
-    return `2026-${mes}-${dia}T${hora}:00`;
-}
-
-document.addEventListener('DOMContentLoaded', async function () {
-
-    const res = await fetch('/turnos');
-    const data = await res.json();
-
-    const eventos = data.map(t => ({
-        title: `${t.doctor} - ${t.nombre}`,
-        start: convertirFecha(t.fecha)
-    }));
-
-    const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-        initialView: 'timeGridWeek',
-        locale: 'es',
-        events: eventos,
-        height: "auto"
-    });
-
-    calendar.render();
-});
-
-</script>
+</table>
 
 </body>
 </html>
