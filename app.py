@@ -259,13 +259,25 @@ def calendario():
     if "user" not in session:
         return redirect("/login")
 
+    doctor = request.args.get("doctor")
+
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("SELECT nombre, doctor, fecha FROM turnos")
+
+    if doctor:
+        c.execute("SELECT nombre, doctor, fecha FROM turnos WHERE doctor=?", (doctor,))
+    else:
+        c.execute("SELECT nombre, doctor, fecha FROM turnos")
+
     turnos = c.fetchall()
+
+    # obtener lista de médicos únicos
+    c.execute("SELECT DISTINCT doctor FROM turnos")
+    medicos = [m[0] for m in c.fetchall()]
+
     conn.close()
 
-    return render_template("calendario.html", turnos=turnos)
+    return render_template("calendario.html", turnos=turnos, medicos=medicos, doctor_actual=doctor)
 
 # =========================
 # HOME
