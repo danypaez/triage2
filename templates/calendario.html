@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Calendario Médico</title>
+    <title>Calendario</title>
 
     <style>
         body {
@@ -14,20 +14,10 @@
             text-align: center;
         }
 
-        .filtro {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        select {
-            padding: 8px;
-            font-size: 14px;
-        }
-
         table {
             width: 100%;
-            border-collapse: collapse;
             background: white;
+            border-collapse: collapse;
         }
 
         th {
@@ -41,173 +31,88 @@
             border-bottom: 1px solid #ddd;
         }
 
-        tr:hover {
-            background: #f1f1f1;
-        }
+        .alta { background: #ff4d4d; color: white; }
+        .media { background: #ffc107; }
+        .baja { background: #28a745; color: white; }
 
-        .acciones button {
+        button {
             margin: 2px;
-            padding: 5px 8px;
+            padding: 5px;
             border: none;
             cursor: pointer;
         }
-
-        .editar {
-            background: #ffc107;
-        }
-
-        .borrar {
-            background: #dc3545;
-            color: white;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 20%;
-            left: 30%;
-            width: 40%;
-            background: white;
-            padding: 20px;
-            border: 2px solid #333;
-        }
-
-        .modal input {
-            width: 100%;
-            margin: 5px 0;
-            padding: 8px;
-        }
-
-        .modal button {
-            margin-top: 10px;
-        }
     </style>
 </head>
+
 <body>
 
-<h1>📅 Calendario de Turnos</h1>
-
-<div class="filtro">
-    <label>Filtrar por médico:</label>
-    <select id="filtroMedico" onchange="cargarTurnos()">
-        <option value="">Todos</option>
-        <option>Dr. Juan Pérez</option>
-        <option>Dr. Esteban López</option>
-    </select>
-</div>
+<h1>📅 Mis Turnos</h1>
 
 <table>
     <thead>
         <tr>
             <th>Fecha</th>
-            <th>Médico</th>
             <th>Paciente</th>
             <th>DNI</th>
             <th>Síntomas</th>
+            <th>Estado</th>
             <th>Acciones</th>
         </tr>
     </thead>
-    <tbody id="tablaTurnos"></tbody>
+
+    <tbody id="tabla"></tbody>
 </table>
 
-<!-- MODAL EDITAR -->
-<div class="modal" id="modalEditar">
-    <h3>Editar Turno</h3>
-
-    <input type="hidden" id="edit_id">
-
-    <input id="edit_nombre" placeholder="Nombre">
-    <input id="edit_dni" placeholder="DNI">
-    <input id="edit_sintomas" placeholder="Síntomas">
-    <input id="edit_doctor" placeholder="Doctor">
-    <input id="edit_fecha" placeholder="Fecha">
-
-    <button onclick="guardarEdicion()">Guardar</button>
-    <button onclick="cerrarModal()">Cancelar</button>
-</div>
-
 <script>
-async function cargarTurnos() {
-
-    const medico = document.getElementById("filtroMedico").value;
+async function cargar() {
 
     const res = await fetch("/turnos_data");
     const data = await res.json();
 
-    const tabla = document.getElementById("tablaTurnos");
+    const tabla = document.getElementById("tabla");
     tabla.innerHTML = "";
 
     data.forEach(t => {
 
-        if (medico && t.doctor !== medico) return;
+        const clase =
+            t.urgencia === "ALTA" ? "alta" :
+            t.urgencia === "MEDIA" ? "media" : "baja";
 
         tabla.innerHTML += `
-            <tr>
-                <td>${t.fecha}</td>
-                <td>${t.doctor}</td>
-                <td>${t.nombre}</td>
-                <td>${t.dni}</td>
-                <td>${t.sintomas}</td>
-                <td class="acciones">
-                    <button class="editar" onclick='editar(${JSON.stringify(t)})'>✏️</button>
-                    <button class="borrar" onclick="borrar(${t.id})">🗑</button>
-                </td>
-            </tr>
+        <tr class="${clase}">
+            <td>${t.fecha}</td>
+            <td>${t.nombre}</td>
+            <td>${t.dni}</td>
+            <td>${t.sintomas}</td>
+            <td>${t.estado}</td>
+            <td>
+                <button onclick="confirmar(${t.id})">✔</button>
+                <button onclick="borrar(${t.id})">🗑</button>
+            </td>
+        </tr>
         `;
     });
 }
 
-function editar(t) {
-    document.getElementById("modalEditar").style.display = "block";
-
-    document.getElementById("edit_id").value = t.id;
-    document.getElementById("edit_nombre").value = t.nombre;
-    document.getElementById("edit_dni").value = t.dni;
-    document.getElementById("edit_sintomas").value = t.sintomas;
-    document.getElementById("edit_doctor").value = t.doctor;
-    document.getElementById("edit_fecha").value = t.fecha;
-}
-
-function cerrarModal() {
-    document.getElementById("modalEditar").style.display = "none";
-}
-
-async function guardarEdicion() {
-
-    const data = {
-        id: document.getElementById("edit_id").value,
-        nombre: document.getElementById("edit_nombre").value,
-        dni: document.getElementById("edit_dni").value,
-        sintomas: document.getElementById("edit_sintomas").value,
-        doctor: document.getElementById("edit_doctor").value,
-        fecha: document.getElementById("edit_fecha").value,
-        especialidad: "clínica médica"
-    };
-
-    await fetch("/editar_turno", {
+async function confirmar(id) {
+    await fetch("/confirmar_estado", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(data)
+        body: JSON.stringify({id})
     });
-
-    cerrarModal();
-    cargarTurnos();
+    cargar();
 }
 
 async function borrar(id) {
-
-    if (!confirm("¿Eliminar turno?")) return;
-
     await fetch("/borrar_turno", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({id})
     });
-
-    cargarTurnos();
+    cargar();
 }
 
-cargarTurnos();
+cargar();
 </script>
 
 </body>
