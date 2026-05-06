@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Triage IA Premium</title>
+<title>Triage IA</title>
 
 <style>
 body {
@@ -13,26 +13,22 @@ body {
     padding-top: 40px;
 }
 
-.container {
-    width: 520px;
-    margin: auto;
-}
+.container { width: 520px; margin: auto; }
 
-textarea, input {
+input, textarea {
     width: 100%;
     padding: 10px;
     margin-top: 10px;
     border-radius: 8px;
-    border: none;
 }
 
 button {
     margin-top: 10px;
     padding: 10px;
-    border: none;
     border-radius: 8px;
     background: #00c6ff;
     color: white;
+    border: none;
     cursor: pointer;
 }
 
@@ -41,16 +37,6 @@ button {
     padding: 15px;
     background: rgba(255,255,255,0.08);
     border-radius: 10px;
-}
-
-.perfil {
-    margin-top: 50px;
-}
-
-.foto {
-    width: 150px;
-    border-radius: 50%;
-    border: 3px solid #00c6ff;
 }
 </style>
 </head>
@@ -61,7 +47,7 @@ button {
 
 <h2>🏥 Triage IA</h2>
 
-<input id="nombre" placeholder="Nombre y apellido">
+<input id="nombre" placeholder="Nombre">
 <button onclick="okNombre()">OK</button>
 
 <input id="dni" placeholder="DNI" disabled>
@@ -74,158 +60,84 @@ button {
 
 </div>
 
-<div class="perfil">
-    <img src="/static/doctor.png" class="foto">
-    <h3>Doctor Cacarulo</h3>
-    <p>Director Ejecutivo</p>
-    <p>Sanatorio "Directo al Cielo"</p>
-</div>
-
 <script>
 
-let nombre = "";
-let dni = "";
-let voz = null;
+let nombre="", dni="";
 
-function cargarVoces(){
-    const voces = speechSynthesis.getVoices();
-    voz = voces.find(v => v.lang.startsWith("es")) || voces[0];
-}
-speechSynthesis.onvoiceschanged = cargarVoces;
-
-function hablar(t){
-    const m = new SpeechSynthesisUtterance(t);
-    m.voice = voz;
-    m.rate = 0.9;
-    speechSynthesis.cancel();
-    setTimeout(() => speechSynthesis.speak(m), 150);
-}
-
-// =========================
-// FLUJO PACIENTE
-// =========================
 function okNombre(){
-    nombre = document.getElementById("nombre").value;
-
-    document.getElementById("dni").disabled = false;
-    document.getElementById("btnDni").disabled = false;
-
-    hablar(`${nombre}, indique su DNI`);
+    nombre=document.getElementById("nombre").value;
+    document.getElementById("dni").disabled=false;
 }
 
 function okDni(){
-    dni = document.getElementById("dni").value;
-
-    document.getElementById("texto").disabled = false;
-    document.getElementById("btnEnviar").disabled = false;
-
-    hablar(`${nombre}, indique sus síntomas`);
+    dni=document.getElementById("dni").value;
+    document.getElementById("texto").disabled=false;
+    document.getElementById("btnEnviar").disabled=false;
 }
 
-// =========================
-// TRIAGE REQUEST
-// =========================
 async function enviar(){
 
-    const texto = document.getElementById("texto").value;
+    const texto=document.getElementById("texto").value;
 
-    const res = await fetch("/triage", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ texto })
+    const res=await fetch("/triage",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({texto})
     });
 
-    const data = await res.json();
+    const data=await res.json();
 
-    if (!data.ok) {
-        document.getElementById("resultado").innerHTML = "<p>Error en el sistema</p>";
-        return;
-    }
+    window.medicos=data.medicos;
+    window.base={nombre,dni,sintomas:texto,especialidad:data.especialidad};
 
-    window.baseData = {
-        nombre,
-        dni,
-        sintomas: texto,
-        especialidad: data.especialidad
-    };
+    let html=`<h3>${data.especialidad}</h3>`;
 
-    window.medicos = data.medicos;
-
-    let html = `<p><b>${data.especialidad}</b></p>`;
-
-    html += `<ul>
-        ${data.recomendaciones.map(r => `<li>${r}</li>`).join("")}
-    </ul>`;
-
-    html += `<h3>Seleccione médico</h3>`;
-
-    // FIX IMPORTANTE: ahora medicos es objeto {doctor, turnos}
-    data.medicos.forEach((m, i) => {
-        html += `<button onclick="seleccionarMedico(${i})">${m.doctor}</button>`;
+    data.medicos.forEach((m,i)=>{
+        html+=`<button onclick="medico(${i})">${m.doctor}</button>`;
     });
 
-    document.getElementById("resultado").innerHTML = html;
-
-    hablar(`Especialidad detectada: ${data.especialidad}`);
+    document.getElementById("resultado").innerHTML=html;
 }
 
-// =========================
-// SELECCION MÉDICO
-// =========================
-function seleccionarMedico(i){
+function medico(i){
 
-    const medico = window.medicos[i];
+    const m=window.medicos[i];
 
-    window.turnoData = {
-        ...window.baseData,
-        doctor: medico.doctor
+    window.turno={
+        ...window.base,
+        doctor:m.doctor
     };
 
-    let html = `<h3>${medico.doctor}</h3>`;
-    html += `<p>Seleccione horario</p>`;
+    let html=`<h3>${m.doctor}</h3>`;
 
-    medico.turnos.forEach(t => {
-        html += `<button onclick="confirmar('${t}')">${t}</button>`;
+    m.turnos.forEach(t=>{
+        html+=`<button onclick="confirmar('${t}')">${t}</button>`;
     });
 
-    document.getElementById("resultado").innerHTML = html;
-
-    hablar(`Seleccione horario con ${medico.doctor}`);
+    document.getElementById("resultado").innerHTML=html;
 }
 
-// =========================
-// CONFIRMAR TURNO
-// =========================
 async function confirmar(fecha){
 
-    const res = await fetch("/confirmar", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-            ...window.turnoData,
-            fecha
+    const res=await fetch("/confirmar",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+            ...window.turno,
+            fecha:fecha.trim()
         })
     });
 
-    const r = await res.json();
+    const r=await res.json();
 
-    if (r.ok) {
-        hablar("Turno confirmado correctamente");
-
-        document.getElementById("resultado").innerHTML =
-            `<h3>Turno confirmado</h3>
-             <p><b>${window.turnoData.doctor}</b></p>
-             <p>${fecha}</p>`;
+    if(r.ok){
+        document.getElementById("resultado").innerHTML=
+        `<h3>Turno confirmado</h3>
+         <p>${window.turno.doctor} - ${fecha}</p>`;
     } else {
-        hablar("Error al confirmar turno");
+        alert(r.error || "Error");
     }
 }
-
-// INIT
-window.onload = () => {
-    cargarVoces();
-    hablar("Bienvenido, indique su nombre");
-};
 
 </script>
 
