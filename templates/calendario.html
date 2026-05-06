@@ -1,119 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Calendario</title>
-
-    <style>
-        body {
-            font-family: Arial;
-            background: #f4f6f9;
-            padding: 20px;
-        }
-
-        h1 {
-            text-align: center;
-        }
-
-        table {
-            width: 100%;
-            background: white;
-            border-collapse: collapse;
-        }
-
-        th {
-            background: #007bff;
-            color: white;
-            padding: 10px;
-        }
-
-        td {
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .alta { background: #ff4d4d; color: white; }
-        .media { background: #ffc107; }
-        .baja { background: #28a745; color: white; }
-
-        button {
-            margin: 2px;
-            padding: 5px;
-            border: none;
-            cursor: pointer;
-        }
-    </style>
+<title>Calendario</title>
+<style>
+body {background:#020617;color:white;font-family:Arial;text-align:center;}
+table {margin:auto;border-collapse:collapse;}
+td,th {border:1px solid white;padding:10px;}
+</style>
 </head>
-
 <body>
 
-<h1>📅 Mis Turnos</h1>
+<h2>Turnos</h2>
+<a href="/logout">Cerrar sesión</a>
 
 <table>
-    <thead>
-        <tr>
-            <th>Fecha</th>
-            <th>Paciente</th>
-            <th>DNI</th>
-            <th>Síntomas</th>
-            <th>Estado</th>
-            <th>Acciones</th>
-        </tr>
-    </thead>
+<tr>
+<th>Paciente</th>
+<th>DNI</th>
+<th>Síntomas</th>
+<th>Doctor</th>
+<th>Fecha</th>
+</tr>
 
-    <tbody id="tabla"></tbody>
+{% for t in turnos %}
+<tr>
+<td>{{t[1]}}</td>
+<td>{{t[2]}}</td>
+<td>{{t[3]}}</td>
+<td>{{t[5]}}</td>
+<td>{{t[6]}}</td>
+</tr>
+{% endfor %}
+
 </table>
-
-<script>
-async function cargar() {
-
-    const res = await fetch("/turnos_data");
-    const data = await res.json();
-
-    const tabla = document.getElementById("tabla");
-    tabla.innerHTML = "";
-
-    data.forEach(t => {
-
-        const clase =
-            t.urgencia === "ALTA" ? "alta" :
-            t.urgencia === "MEDIA" ? "media" : "baja";
-
-        tabla.innerHTML += `
-        <tr class="${clase}">
-            <td>${t.fecha}</td>
-            <td>${t.nombre}</td>
-            <td>${t.dni}</td>
-            <td>${t.sintomas}</td>
-            <td>${t.estado}</td>
-            <td>
-                <button onclick="confirmar(${t.id})">✔</button>
-                <button onclick="borrar(${t.id})">🗑</button>
-            </td>
-        </tr>
-        `;
-    });
-}
-
-async function confirmar(id) {
-    await fetch("/confirmar_estado", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({id})
-    });
-    cargar();
-}
-
-async function borrar(id) {
-    await fetch("/borrar_turno", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({id})
-    });
-    cargar();
-}
-
-cargar();
-</script>
 
 </body>
 </html>
