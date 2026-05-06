@@ -2,88 +2,55 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Triage Inteligente</title>
+<title>Triage IA Premium</title>
 
 <style>
 body {
-    font-family: Arial, sans-serif;
-    background: #f4f6f9;
-    margin: 0;
+    font-family: Arial;
+    background: linear-gradient(135deg, #0f1720, #020617);
+    color: white;
+    text-align: center;
+    padding-top: 40px;
 }
 
 .container {
-    max-width: 700px;
-    margin: 50px auto;
-    background: white;
-    padding: 30px;
-    border-radius: 10px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    width: 520px;
+    margin: auto;
 }
 
-h1 {
-    text-align: center;
-    color: #2c3e50;
-}
-
-textarea {
+textarea, input {
     width: 100%;
-    padding: 12px;
+    padding: 10px;
+    margin-top: 10px;
     border-radius: 8px;
-    border: 1px solid #ccc;
-    resize: none;
-    font-size: 15px;
+    border: none;
 }
 
 button {
-    width: 100%;
-    padding: 12px;
-    background: #3498db;
-    color: white;
+    margin-top: 10px;
+    padding: 10px;
     border: none;
     border-radius: 8px;
-    font-size: 16px;
+    background: #00c6ff;
+    color: white;
     cursor: pointer;
-    margin-top: 10px;
 }
 
-button:hover {
-    background: #2980b9;
-}
-
-.resultado {
+.box {
     margin-top: 20px;
-    padding: 20px;
+    padding: 15px;
+    background: rgba(255,255,255,0.08);
     border-radius: 10px;
 }
 
-.urgencia-ALTA {
-    background: #ffe5e5;
-    border-left: 5px solid red;
+.perfil {
+    margin-top: 50px;
 }
 
-.urgencia-MEDIA {
-    background: #fff7e0;
-    border-left: 5px solid orange;
-}
-
-.urgencia-BAJA {
-    background: #e8f8f0;
-    border-left: 5px solid green;
-}
-
-.loader {
-    display: none;
-    text-align: center;
-    margin-top: 15px;
-    font-weight: bold;
-    color: #555;
-}
-
-.recomendacion {
-    margin: 5px 0;
-    padding: 8px;
-    background: #f1f1f1;
-    border-radius: 5px;
+.foto {
+    width: 150px;
+    border-radius: 50%;
+    border: 3px solid #00c6ff;
 }
 </style>
 </head>
@@ -92,90 +59,138 @@ button:hover {
 
 <div class="container">
 
-    <h1>🩺 Triage Médico Inteligente</h1>
+<h2>🏥 Triage IA</h2>
 
-    <textarea id="sintomas" rows="5" placeholder="Describí tus síntomas..."></textarea>
+<input id="nombre" placeholder="Nombre y apellido">
+<button onclick="okNombre()">OK</button>
 
-    <button onclick="enviar()">Analizar síntomas</button>
+<input id="dni" placeholder="DNI" disabled>
+<button onclick="okDni()" id="btnDni" disabled>OK</button>
 
-    <div class="loader" id="loader">
-        ⏳ Analizando con IA...
-    </div>
+<textarea id="texto" placeholder="Síntomas" disabled></textarea>
+<button onclick="enviar()" id="btnEnviar" disabled>Evaluar</button>
 
-    <div id="resultado"></div>
+<div id="resultado" class="box"></div>
 
 </div>
 
+<div class="perfil">
+    <img src="/static/doctor.png" class="foto">
+    <h3>Doctor Cacarulo</h3>
+    <p>Director Ejecutivo</p>
+    <p>Sanatorio "Directo al Cielo"</p>
+</div>
+
 <script>
-async function enviar() {
 
-    const texto = document.getElementById("sintomas").value;
-    const loader = document.getElementById("loader");
-    const div = document.getElementById("resultado");
+let nombre="", dni="";
+let voz=null;
 
-    if (!texto) {
-        alert("Escribí algún síntoma");
+function cargarVoces(){
+    const voces=speechSynthesis.getVoices();
+    voz=voces.find(v=>v.lang.startsWith("es"))||voces[0];
+}
+speechSynthesis.onvoiceschanged=cargarVoces;
+
+function hablar(t){
+    const m=new SpeechSynthesisUtterance(t);
+    m.voice=voz;
+    m.rate=0.9;
+    speechSynthesis.cancel();
+    setTimeout(()=>speechSynthesis.speak(m),150);
+}
+
+function okNombre(){
+    nombre=document.getElementById("nombre").value;
+    document.getElementById("dni").disabled=false;
+    document.getElementById("btnDni").disabled=false;
+    hablar(`${nombre}, indique su DNI`);
+}
+
+function okDni(){
+    dni=document.getElementById("dni").value;
+    document.getElementById("texto").disabled=false;
+    document.getElementById("btnEnviar").disabled=false;
+    hablar(`${nombre}, indique sus síntomas`);
+}
+
+async function enviar(){
+
+    const texto=document.getElementById("texto").value;
+
+    const res=await fetch("/triage",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({texto})
+    });
+
+    const data=await res.json();
+
+    if(data.alerta){
+        hablar(data.alerta);
+        document.getElementById("resultado").innerHTML=`<p>${data.alerta}</p>`;
         return;
     }
 
-    div.innerHTML = "";
-    loader.style.display = "block";
+    if(!data.medicos || data.medicos.length===0){
+        document.getElementById("resultado").innerHTML=`<p>No hay turnos disponibles</p>`;
+        return;
+    }
 
-    try {
+    window.baseData={nombre,dni,sintomas:texto,especialidad:data.especialidad};
 
-        const res = await fetch("/triage", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ texto })
-        });
+    let html=`<p><b>${data.especialidad}</b></p>`;
+    html+=`<ul>${data.recomendaciones.map(r=>`<li>${r}</li>`).join("")}</ul>`;
+    html+=`<h3>Seleccione médico</h3>`;
 
-        if (!res.ok) {
-            throw new Error("Error servidor");
-        }
+    data.medicos.forEach((m,i)=>{
+        html+=`<button onclick="seleccionarMedico(${i})">${m.doctor}</button>`;
+    });
 
-        const data = await res.json();
+    document.getElementById("resultado").innerHTML=html;
 
-        loader.style.display = "none";
+    window.medicos=data.medicos;
+}
 
-        console.log("Respuesta:", data);
+function seleccionarMedico(i){
 
-        const urgenciaClass = "urgencia-" + data.urgencia;
+    const m=window.medicos[i];
 
-        let html = `
-            <div class="resultado ${urgenciaClass}">
-                <h3>Especialidad: ${data.especialidad}</h3>
-                <h4>Urgencia: ${data.urgencia}</h4>
-                <hr>
-                <h4>Recomendaciones:</h4>
-        `;
+    window.turnoData={...window.baseData, doctor:m.doctor};
 
-        if (data.recomendaciones && Array.isArray(data.recomendaciones)) {
-            data.recomendaciones.forEach(r => {
-                html += `<div class="recomendacion">• ${r}</div>`;
-            });
-        } else {
-            html += `<p>No hay recomendaciones disponibles</p>`;
-        }
+    let html=`<h3>${m.doctor}</h3>`;
 
-        html += `</div>`;
+    m.turnos.forEach(t=>{
+        html+=`<button onclick="confirmar('${t}')">${t}</button>`;
+    });
 
-        div.innerHTML = html;
+    document.getElementById("resultado").innerHTML=html;
+}
 
-    } catch (err) {
-        loader.style.display = "none";
+async function confirmar(fecha){
 
-        div.innerHTML = `
-            <div class="resultado urgencia-MEDIA">
-                <h3>Error</h3>
-                <p>No se pudo procesar la solicitud.</p>
-            </div>
-        `;
+    const res=await fetch("/confirmar",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({...window.turnoData, fecha})
+    });
 
-        console.error(err);
+    const r=await res.json();
+
+    if(r.ok){
+        hablar("Turno confirmado");
+        document.getElementById("resultado").innerHTML=
+            `<h3>Turno confirmado</h3><p>${window.turnoData.doctor} - ${fecha}</p>`;
+    }else{
+        hablar("Ese turno ya fue tomado");
     }
 }
+
+window.onload=()=>{
+    cargarVoces();
+    hablar("Bienvenido, indique su nombre");
+};
+
 </script>
 
 </body>
