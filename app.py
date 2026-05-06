@@ -60,7 +60,7 @@ def init_db():
 init_db()
 
 # =========================
-# VALIDACIÓN
+# UTIL
 # =========================
 def validar_texto(texto):
     return texto and isinstance(texto, str) and len(texto.strip()) >= 3
@@ -95,12 +95,12 @@ def generar_turnos(especialidad):
         "clínica médica": ["Dr. General 1", "Dr. General 2"]
     }
 
-    horarios_base = ["09:00", "12:00", "16:00", "18:00"]
+    horarios = ["09:00", "12:00", "16:00", "18:00"]
 
     return [
         {
             "doctor": m,
-            "turnos": horarios_base
+            "turnos": horarios
         }
         for m in medicos.get(especialidad, ["Dr. Disponible"])
     ]
@@ -112,7 +112,7 @@ def triage(texto):
 
     t = normalizar(texto)
 
-    if match(t, ["pecho","infarto","taquicardia","arritmia","dolor cardíaco","falta de aire"]):
+    if match(t, ["pecho","infarto","taquicardia","arritmia","dolor","falta de aire"]):
         return "ALTA","cardiología",["Urgente"]
 
     if match(t, ["convulsión","desmayo","pérdida","cefalea"]):
@@ -179,21 +179,20 @@ def triage_route():
         return jsonify({"ok": False}), 500
 
 # =========================
-# CONFIRMAR TURNO (FIX FINAL IMPORTANTE)
+# CONFIRMAR (FIX FINAL REAL)
 # =========================
 @app.route("/confirmar", methods=["POST"])
 def confirmar():
     try:
-        data = request.get_json()
+        data = request.get_json(force=True)
 
-        nombre = data["nombre"]
-        dni = data["dni"]
-        sintomas = data["sintomas"]
-        especialidad = data["especialidad"]
-        doctor = data["doctor"]
-        fecha = data["fecha"]
+        nombre = data.get("nombre","").strip()
+        dni = data.get("dni","").strip()
+        sintomas = data.get("sintomas","").strip()
+        especialidad = data.get("especialidad","").strip()
+        doctor = data.get("doctor","").strip()
+        fecha = data.get("fecha","").strip().replace("hs","")
 
-        # VALIDACIÓN DE HORARIO (CLAVE FIX)
         horarios_validos = ["09:00", "12:00", "16:00", "18:00"]
 
         if fecha not in horarios_validos:
@@ -202,7 +201,6 @@ def confirmar():
         conn = sqlite3.connect(DB)
         c = conn.cursor()
 
-        # EVITA DOBLE RESERVA
         c.execute("""
         SELECT id FROM turnos
         WHERE doctor=? AND fecha=?
@@ -214,15 +212,7 @@ def confirmar():
         c.execute("""
         INSERT INTO turnos (nombre,dni,sintomas,especialidad,doctor,fecha,urgencia)
         VALUES (?,?,?,?,?,?,?)
-        """, (
-            nombre,
-            dni,
-            sintomas,
-            especialidad,
-            doctor,
-            fecha,
-            "MEDIA"
-        ))
+        """, (nombre,dni,sintomas,especialidad,doctor,fecha,"MEDIA"))
 
         conn.commit()
         conn.close()
@@ -237,22 +227,6 @@ def confirmar():
 @app.route("/")
 def index():
     return render_template("index.html")
-
-@app.route("/calendario")
-def calendario():
-
-    if "user" not in session:
-        return redirect("/login")
-
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    c.execute("SELECT * FROM turnos")
-    turnos = c.fetchall()
-
-    conn.close()
-
-    return render_template("calendario.html", turnos=turnos)
 
 if __name__ == "__main__":
     app.run(debug=True)
