@@ -1,6 +1,7 @@
-import os
+ import os
 import sqlite3
 import json
+from datetime import datetime, timedelta, time
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
@@ -23,7 +24,8 @@ def init_db():
         sintomas TEXT,
         especialidad TEXT,
         doctor TEXT,
-        fecha TEXT
+        fecha TEXT,
+        UNIQUE(doctor, fecha)
     )
     """)
 
@@ -33,9 +35,85 @@ def init_db():
 init_db()
 
 # =========================
-# TRIAGE
+# HORARIOS
 # =========================
-def triage(texto):
+def generar_slots_dia(fecha):
+
+    dia = fecha.weekday()
+
+    if dia < 5:
+        inicio, fin = time(9, 0), time(17, 0)
+    elif dia == 5:
+        inicio, fin = time(9, 0), time(14, 0)
+    else:
+        return []
+
+    slots = []
+    actual = datetime.combine(fecha, inicio)
+    fin_dt = datetime.combine(fecha, fin)
+
+    while actual < fin_dt:
+        slots.append(actual.strftime("%d/%m %H:%M"))
+        actual += timedelta(minutes=30)
+
+    return slots
+
+def turno_disponible(doctor, fecha):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    c.execute("SELECT COUNT(*) FROM turnos WHERE doctor=? AND fecha=?", (doctor, fecha))
+    ocupado = c.fetchone()[0]
+
+    conn.close()
+    return ocupado == 0
+
+# =========================
+# TURNOS
+# =========================
+def generar_turnos(especialidad):
+
+    doctores = {
+        "cardiología": ["Dr. Ramírez"],
+        "ginecología": ["Dra. López"],
+        "obstetricia": ["Dra. Fernández"],
+        "traumatología": ["Dr. Gómez"],
+        "dermatología": ["Dra. Silva"],
+        "odontología": ["Dr. Ruiz"],
+        "oftalmología": ["Dr. Díaz"],
+        "gastroenterología": ["Dr. Pérez"],
+        "neurología": ["Dr. Castro"],
+        "clínica médica": ["Dr. General"]
+    }
+
+    lista = doctores.get(especialidad.lower(), ["Dr. General"])
+
+    hoy = datetime.now()
+    resultado = []
+
+    for doctor in lista:
+
+        disponibles = []
+
+        for i in range(1, 10):
+            fecha = hoy + timedelta(days=i)
+
+            for slot in generar_slots_dia(fecha):
+                if turno_disponible(doctor, slot):
+                    disponibles.append(slot)
+
+        if disponibles:
+            resultado.append({
+                "doctor": doctor,
+                "turnos": disponibles[:3]
+            })
+
+    return resultado
+
+# =========================
+# TRIAGE INTELIGENTE
+# =========================
+ def triage(texto):
 
     t = texto.lower()
 
@@ -178,6 +256,35 @@ def triage(texto):
     }
 
 # =========================
+# GUARDAR
+# =========================
+def guardar_turno(data):
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    try:
+        c.execute("""
+        INSERT INTO turnos (nombre, dni, sintomas, especialidad, doctor, fecha)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            data["nombre"],
+            data["dni"],
+            data["sintomas"],
+            data["especialidad"],
+            data["doctor"],
+            data["fecha"]
+        ))
+
+        conn.commit()
+        ok = True
+    except:
+        ok = False
+
+    conn.close()
+    return ok
+
+# =========================
 # ROUTES
 # =========================
 @app.route("/")
@@ -186,13 +293,31 @@ def index():
 
 @app.route("/triage", methods=["POST"])
 def triage_route():
-    data = request.json
-    texto = data.get("texto", "")
-    resultado = triage(texto)
-    return jsonify(resultado)
 
-# =========================
-# RUN
-# =========================
+    texto = request.json.get("texto")
+
+    data = triage(texto)
+
+    if data["urgencia"] == "ALTA":
+        return jsonify({
+            "alerta": "⚠️ URGENCIA ALTA - ir a guardia",
+            "especialidad": data["especialidad"],
+            "recomendaciones": data["recomendaciones"],
+            "medicos": []
+        })
+
+    medicos = generar_turnos(data["especialidad"])
+
+    return jsonify({
+        "especialidad": data["especialidad"],
+        "medicos": medicos if medicos else [],
+        "recomendaciones": data["recomendaciones"]
+    })
+
+@app.route("/confirmar", methods=["POST"])
+def confirmar():
+    ok = guardar_turno(request.json)
+    return jsonify({"ok": ok})
+
 if __name__ == "__main__":
     app.run(debug=True)
