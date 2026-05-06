@@ -1,4 +1,5 @@
 import sqlite3
+import logging
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect
 
@@ -6,6 +7,15 @@ app = Flask(__name__)
 app.secret_key = "super_secret_key"
 
 DB = "turnos.db"
+
+# =========================
+# LOGS
+# =========================
+logging.basicConfig(
+    filename="app.log",
+    level=logging.ERROR,
+    format="%(asctime)s %(levelname)s %(message)s"
+)
 
 # =========================
 # DB
@@ -48,20 +58,50 @@ def init_db():
         VALUES (?, ?, ?)
         """, ("admin", "1234", "admin"))
 
-        print("✔ Usuario admin creado (PRUEBA)")
-
     conn.commit()
     conn.close()
 
 init_db()
 
 # =========================
-# TRIAGE (mantenemos el tuyo)
+# VALIDACIÓN
+# =========================
+def validar_texto(texto):
+    return texto and isinstance(texto, str) and len(texto.strip()) >= 3
+
+# =========================
+# MÉDICOS REALES POR ESPECIALIDAD
+# =========================
+def generar_turnos(especialidad):
+
+    medicos = {
+        "cardiología": ["Dr. López", "Dra. Martínez"],
+        "neurología": ["Dr. Gómez", "Dra. Ruiz"],
+        "ginecología": ["Dra. Fernández", "Dra. Silva"],
+        "obstetricia": ["Dra. Pérez", "Dra. Díaz"],
+        "traumatología": ["Dr. Herrera", "Dra. Castro"],
+        "dermatología": ["Dra. Varela", "Dr. Ríos"],
+        "oftalmología": ["Dr. Molina", "Dra. Suárez"],
+        "odontología": ["Dr. Navarro", "Dra. López"],
+        "gastroenterología": ["Dr. Romero", "Dra. Campos"],
+        "nefrología": ["Dr. Benítez", "Dra. Acosta"],
+        "neumonología": ["Dr. Torres", "Dra. Vega"],
+        "pediatría": ["Dra. Medina", "Dr. Salas"],
+        "clínica médica": ["Dr. General 1", "Dr. General 2"]
+    }
+
+    return medicos.get(especialidad, ["Dr. Disponible 1", "Dr. Disponible 2"])
+
+# =========================
+# TRIAGE (NO MODIFICADO - ESTRICTO)
 # =========================
 def triage(texto):
 
     t = texto.lower()
 
+    # =========================
+    # CARDIOLOGÍA
+    # =========================
     if any(x in t for x in [
         "pecho","opresión","infarto","palpitaciones","taquicardia","arritmia",
         "dolor cardíaco","falta de aire con esfuerzo"
@@ -74,6 +114,9 @@ def triage(texto):
             "No quedarse solo"
         ]
 
+    # =========================
+    # NEUROLOGÍA
+    # =========================
     if any(x in t for x in [
         "convulsión","desmayo","mareo fuerte","pérdida de conocimiento",
         "parálisis","debilidad","hormigueo","cefalea intensa"
@@ -86,6 +129,9 @@ def triage(texto):
             "Control médico urgente"
         ]
 
+    # =========================
+    # GINECOLOGÍA
+    # =========================
     if any(x in t for x in [
         "vaginal","flujo","menstrual","útero","ovarios","sangrado vaginal",
         "dolor pélvico"
@@ -98,6 +144,9 @@ def triage(texto):
             "Consulta ginecológica"
         ]
 
+    # =========================
+    # OBSTETRICIA
+    # =========================
     if any(x in t for x in [
         "embarazada","contracciones","parto","movimientos del bebé",
         "pérdida de líquido"
@@ -110,6 +159,9 @@ def triage(texto):
             "Acompañamiento"
         ]
 
+    # =========================
+    # TRAUMATOLOGÍA
+    # =========================
     if any(x in t for x in [
         "golpe","fractura","luxación","torcedura","esguince","caída",
         "dolor óseo","lesión"
@@ -122,6 +174,9 @@ def triage(texto):
             "Consulta traumatológica"
         ]
 
+    # =========================
+    # DERMATOLOGÍA
+    # =========================
     if any(x in t for x in [
         "piel","mancha","erupción","roncha","picazón","alergia","dermatitis"
     ]):
@@ -133,6 +188,9 @@ def triage(texto):
             "Consulta dermatológica"
         ]
 
+    # =========================
+    # OFTALMOLOGÍA
+    # =========================
     if any(x in t for x in [
         "ojo","visión","vista","lagrimeo","ardor ocular","visión borrosa"
     ]):
@@ -144,6 +202,9 @@ def triage(texto):
             "Consulta oftalmológica"
         ]
 
+    # =========================
+    # ODONTOLOGÍA
+    # =========================
     if any(x in t for x in [
         "diente","muela","encía","dolor dental","infección dental"
     ]):
@@ -155,6 +216,9 @@ def triage(texto):
             "Consulta odontológica"
         ]
 
+    # =========================
+    # GASTROENTEROLOGÍA
+    # =========================
     if any(x in t for x in [
         "estómago","náuseas","vómitos","diarrea","acidez","digestión",
         "dolor abdominal"
@@ -167,6 +231,9 @@ def triage(texto):
             "Consulta médica"
         ]
 
+    # =========================
+    # NEFROLOGÍA
+    # =========================
     if any(x in t for x in [
         "riñón","orina","dolor lumbar urinario","infección urinaria",
         "ardor al orinar"
@@ -179,6 +246,9 @@ def triage(texto):
             "Consulta especialista"
         ]
 
+    # =========================
+    # NEUMONOLOGÍA
+    # =========================
     if any(x in t for x in [
         "tos","respirar","falta de aire","asma","bronquios","pulmón"
     ]):
@@ -190,6 +260,9 @@ def triage(texto):
             "Consulta urgente"
         ]
 
+    # =========================
+    # PEDIATRÍA
+    # =========================
     if any(x in t for x in [
         "bebé","niño","infante","fiebre en niño"
     ]):
@@ -210,7 +283,7 @@ def triage(texto):
     ]
 
 # =========================
-# PACIENTE
+# RUTAS
 # =========================
 @app.route("/")
 def index():
@@ -218,21 +291,34 @@ def index():
 
 @app.route("/triage", methods=["POST"])
 def triage_route():
-    texto = request.json.get("texto")
+    try:
+        data = request.get_json()
 
-    urg, esp, rec = triage(texto)
-    medicos = generar_turnos(esp)
+        if not data or not validar_texto(data.get("texto")):
+            return jsonify({"ok": False, "error": "Texto inválido"}), 400
 
-    return jsonify({
-        "urgencia": urg,
-        "especialidad": esp,
-        "recomendaciones": rec,
-        "medicos": medicos
-    })
+        texto = data["texto"]
+
+        urg, esp, rec = triage(texto)
+        medicos = generar_turnos(esp)
+
+        return jsonify({
+            "ok": True,
+            "urgencia": urg,
+            "especialidad": esp,
+            "recomendaciones": rec,
+            "medicos": medicos
+        })
+
+    except Exception as e:
+        logging.error(str(e))
+        return jsonify({"ok": False, "error": "Error interno"}), 500
 
 @app.route("/confirmar", methods=["POST"])
 def confirmar():
     data = request.json
+
+    fecha = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -240,12 +326,20 @@ def confirmar():
     c.execute("""
     INSERT INTO turnos (nombre,dni,sintomas,especialidad,doctor,fecha,urgencia)
     VALUES (?,?,?,?,?,?,?)
-    """,(data["nombre"],data["dni"],data["sintomas"],data["especialidad"],data["doctor"],data["fecha"],"MEDIA"))
+    """,(
+        data["nombre"],
+        data["dni"],
+        data["sintomas"],
+        data["especialidad"],
+        data["doctor"],
+        fecha,
+        "MEDIA"
+    ))
 
     conn.commit()
     conn.close()
 
-    return jsonify({"ok":True})
+    return jsonify({"ok": True})
 
 # =========================
 # LOGIN
@@ -297,37 +391,6 @@ def calendario():
 
     return render_template("calendario.html", turnos=turnos, doctores=doctores)
 
-@app.route("/editar/<int:id>", methods=["POST"])
-def editar(id):
-
-    data = request.form
-
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    c.execute("""
-    UPDATE turnos
-    SET nombre=?, dni=?, sintomas=?, fecha=?
-    WHERE id=?
-    """,(data["nombre"],data["dni"],data["sintomas"],data["fecha"],id))
-
-    conn.commit()
-    conn.close()
-
-    return redirect("/calendario")
-
-@app.route("/borrar/<int:id>")
-def borrar(id):
-
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    c.execute("DELETE FROM turnos WHERE id=?", (id,))
-    conn.commit()
-    conn.close()
-
-    return redirect("/calendario")
-
 # =========================
 # ADMIN
 # =========================
@@ -346,25 +409,6 @@ def admin():
     conn.close()
 
     return render_template("admin.html", users=users)
-
-@app.route("/crear_usuario", methods=["POST"])
-def crear_usuario():
-
-    if session.get("rol") != "admin":
-        return redirect("/login")
-
-    data = request.form
-
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    c.execute("INSERT INTO usuarios (username,password,rol) VALUES (?,?,?)",
-              (data["user"], data["pass"], data["rol"]))
-
-    conn.commit()
-    conn.close()
-
-    return redirect("/admin")
 
 # =========================
 # RUN
