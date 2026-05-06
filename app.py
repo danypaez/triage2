@@ -113,7 +113,7 @@ def generar_turnos(especialidad):
 # =========================
 # TRIAGE INTELIGENTE
 # =========================
- def triage(texto):
+def triage(texto):
 
     t = texto.lower()
 
