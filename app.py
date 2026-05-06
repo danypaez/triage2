@@ -1,13 +1,20 @@
 import os
 import sqlite3
-import json
 from datetime import datetime, timedelta, time
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect
 
 app = Flask(__name__)
 app.secret_key = "clave_secreta"
 
 DB = "turnos.db"
+
+# =========================
+# USUARIOS
+# =========================
+USUARIOS = {
+    "admin": "1234",
+    "doctor": "1234"
+}
 
 # =========================
 # DB
@@ -24,8 +31,7 @@ def init_db():
         sintomas TEXT,
         especialidad TEXT,
         doctor TEXT,
-        fecha TEXT,
-        UNIQUE(doctor, fecha)
+        fecha TEXT
     )
     """)
 
@@ -35,16 +41,132 @@ def init_db():
 init_db()
 
 # =========================
+# ESPECIALIDADES (AMPLIAS)
+# =========================
+ESPECIALIDADES = {
+
+    "cardiología": [
+        "pecho","infarto","palpitaciones","presion","presión","corazon","corazón",
+        "taquicardia","arritmia","latidos","hipertension","hipotension"
+    ],
+
+    "ginecología": [
+        "menstruacion","menstruación","regla","flujo","vaginal","útero","utero",
+        "ovarios","dolor pelvico","dolor pélvico","sangrado vaginal"
+    ],
+
+    "obstetricia": [
+        "embarazo","embarazada","gestacion","gestación","parto","contracciones",
+        "prenatal","feto"
+    ],
+
+    "traumatología": [
+        "golpe","fractura","torcedura","esguince","luxacion","luxación",
+        "hueso","rodilla","hombro","caida","caída","lesion","lesión"
+    ],
+
+    "dermatología": [
+        "piel","mancha","erupcion","erupción","picazon","picazón",
+        "acne","acné","dermatitis","roncha"
+    ],
+
+    "odontología": [
+        "diente","muela","encía","encia","caries","dolor dental",
+        "infeccion bucal"
+    ],
+
+    "oftalmología": [
+        "ojo","ojos","vision","visión","ver borroso","lagrimeo",
+        "ardor ocular"
+    ],
+
+    "gastroenterología": [
+        "estomago","estómago","dolor abdominal","diarrea","vomitos","vómitos",
+        "nauseas","náuseas","digestivo","acidez","reflujo"
+    ],
+
+    "neurología": [
+        "cabeza","migraña","migraña","mareo","mareos","convulsiones",
+        "desmayo","hormigueo","neurologico"
+    ],
+
+    "neumonología": [
+        "respirar","respiracion","respiración","tos","falta de aire",
+        "pulmon","pulmón","asma"
+    ],
+
+    "nefrología": [
+        "riñon","riñón","orina","renal","retencion liquidos","retención líquidos"
+    ],
+
+    "endocrinología": [
+        "diabetes","tiroides","hormonas","glucosa","insulina"
+    ],
+
+    "clínica médica": []  # fallback
+}
+
+# =========================
+# TRIAGE ESTRICTO
+# =========================
+def triage(texto):
+
+    t = texto.lower()
+
+    scores = {}
+
+    # calcular puntajes
+    for especialidad, palabras in ESPECIALIDADES.items():
+        score = 0
+
+        for palabra in palabras:
+            if palabra in t:
+                score += 1
+
+        scores[especialidad] = score
+
+    # elegir mejor
+    especialidad = max(scores, key=scores.get)
+
+    # si todos son 0 → clínica médica
+    if scores[especialidad] == 0:
+        especialidad = "clínica médica"
+
+    # =========================
+    # URGENCIA
+    # =========================
+    urgencia = "BAJA"
+
+    if any(x in t for x in ["infarto","no puedo respirar","convulsiones","desmayo"]):
+        urgencia = "ALTA"
+    elif any(x in t for x in ["dolor fuerte","mucho dolor","sangrado"]):
+        urgencia = "MEDIA"
+
+    # =========================
+    # RECOMENDACIONES (5)
+    # =========================
+    recomendaciones = [
+        "Mantenerse hidratado",
+        "Evitar esfuerzos físicos",
+        "No automedicarse",
+        "Controlar evolución de los síntomas",
+        "Consultar con especialista"
+    ]
+
+    return {
+        "urgencia": urgencia,
+        "especialidad": especialidad,
+        "recomendaciones": recomendaciones
+    }
+
+# =========================
 # HORARIOS
 # =========================
 def generar_slots_dia(fecha):
-
     dia = fecha.weekday()
 
     if dia < 5:
         inicio, fin = time(9, 0), time(17, 0)
-    elif dia == 5:
-        inicio, fin = time(9, 0), time(14, 0)
     else:
         return []
 
@@ -61,15 +183,13 @@ def generar_slots_dia(fecha):
 def turno_disponible(doctor, fecha):
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-
     c.execute("SELECT COUNT(*) FROM turnos WHERE doctor=? AND fecha=?", (doctor, fecha))
     ocupado = c.fetchone()[0]
-
     conn.close()
     return ocupado == 0
 
 # =========================
-# TURNOS
+# DOCTORES
 # =========================
 def generar_turnos(especialidad):
 
@@ -83,10 +203,13 @@ def generar_turnos(especialidad):
         "oftalmología": ["Dr. Díaz"],
         "gastroenterología": ["Dr. Pérez"],
         "neurología": ["Dr. Castro"],
+        "neumonología": ["Dr. Vega"],
+        "nefrología": ["Dr. Suárez"],
+        "endocrinología": ["Dr. Méndez"],
         "clínica médica": ["Dr. General"]
     }
 
-    lista = doctores.get(especialidad.lower(), ["Dr. General"])
+    lista = doctores.get(especialidad, ["Dr. General"])
 
     hoy = datetime.now()
     resultado = []
@@ -95,7 +218,7 @@ def generar_turnos(especialidad):
 
         disponibles = []
 
-        for i in range(1, 10):
+        for i in range(1, 7):
             fecha = hoy + timedelta(days=i)
 
             for slot in generar_slots_dia(fecha):
@@ -111,178 +234,27 @@ def generar_turnos(especialidad):
     return resultado
 
 # =========================
-# TRIAGE INTELIGENTE
-# =========================
-def triage(texto):
-
-    t = texto.lower()
-
-    # 🔴 URGENCIAS
-    if any(x in t for x in ["infarto", "no puedo respirar", "dolor pecho fuerte"]):
-        return {
-            "urgencia": "ALTA",
-            "especialidad": "cardiología",
-            "recomendaciones": [
-                "Ir a guardia urgente",
-                "No hacer esfuerzo",
-                "Llamar emergencias",
-                "No quedarse solo",
-                "Mantener calma"
-            ]
-        }
-
-    # ❤️ CARDIO
-    if any(x in t for x in ["presión alta", "palpitaciones"]):
-        return {
-            "urgencia": "MEDIA",
-            "especialidad": "cardiología",
-            "recomendaciones": [
-                "Reducir sal",
-                "Controlar presión",
-                "Evitar esfuerzo",
-                "No fumar",
-                "Consultar cardiólogo"
-            ]
-        }
-
-    # 🤰 GINECOLOGÍA
-    if any(x in t for x in ["flujo", "menstruación", "sangrado vaginal", "dolor ovárico"]):
-        return {
-            "urgencia": "MEDIA",
-            "especialidad": "ginecología",
-            "recomendaciones": [
-                "Evitar relaciones",
-                "Controlar sangrado",
-                "No automedicarse",
-                "Higiene adecuada",
-                "Consultar ginecólogo"
-            ]
-        }
-
-    # 🦴 TRAUMA
-    if any(x in t for x in ["golpe", "fractura", "esguince", "dolor muscular"]):
-        return {
-            "urgencia": "MEDIA",
-            "especialidad": "traumatología",
-            "recomendaciones": [
-                "Reposo",
-                "Hielo",
-                "Inmovilizar",
-                "Elevar zona",
-                "Evitar esfuerzo"
-            ]
-        }
-
-    # 🧴 PIEL
-    if any(x in t for x in ["piel", "mancha", "sarpullido"]):
-        return {
-            "urgencia": "BAJA",
-            "especialidad": "dermatología",
-            "recomendaciones": [
-                "No rascarse",
-                "Evitar sol",
-                "Higiene",
-                "Usar crema neutra",
-                "Consultar dermatólogo"
-            ]
-        }
-
-    # 👁️ OJOS
-    if any(x in t for x in ["ojo", "visión", "ardor ocular"]):
-        return {
-            "urgencia": "MEDIA",
-            "especialidad": "oftalmología",
-            "recomendaciones": [
-                "No frotar",
-                "Evitar pantallas",
-                "Usar lágrimas",
-                "Descansar vista",
-                "Consultar oftalmólogo"
-            ]
-        }
-
-    # 🦷 DIENTES
-    if any(x in t for x in ["diente", "muela", "encía"]):
-        return {
-            "urgencia": "MEDIA",
-            "especialidad": "odontología",
-            "recomendaciones": [
-                "Higiene bucal",
-                "Evitar frío/calor",
-                "No automedicarse",
-                "Enjuague",
-                "Consultar odontólogo"
-            ]
-        }
-
-    # 🍔 GASTRO
-    if any(x in t for x in ["estómago", "náuseas", "vómitos", "diarrea"]):
-        return {
-            "urgencia": "MEDIA",
-            "especialidad": "gastroenterología",
-            "recomendaciones": [
-                "Dieta liviana",
-                "Hidratación",
-                "Evitar grasas",
-                "Reposo",
-                "Consultar gastro"
-            ]
-        }
-
-    # 🧠 NEURO
-    if any(x in t for x in ["mareo", "migraña", "dolor cabeza"]):
-        return {
-            "urgencia": "MEDIA",
-            "especialidad": "neurología",
-            "recomendaciones": [
-                "Reposo",
-                "Oscuridad",
-                "Evitar ruido",
-                "Hidratación",
-                "Consultar neurólogo"
-            ]
-        }
-
-    return {
-        "urgencia": "BAJA",
-        "especialidad": "clínica médica",
-        "recomendaciones": [
-            "Descansar",
-            "Hidratarse",
-            "Comer liviano",
-            "Controlar síntomas",
-            "Consultar médico"
-        ]
-    }
-
-# =========================
 # GUARDAR
 # =========================
 def guardar_turno(data):
-
     conn = sqlite3.connect(DB)
     c = conn.cursor()
 
-    try:
-        c.execute("""
-        INSERT INTO turnos (nombre, dni, sintomas, especialidad, doctor, fecha)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            data["nombre"],
-            data["dni"],
-            data["sintomas"],
-            data["especialidad"],
-            data["doctor"],
-            data["fecha"]
-        ))
+    c.execute("""
+    INSERT INTO turnos (nombre, dni, sintomas, especialidad, doctor, fecha)
+    VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        data["nombre"],
+        data["dni"],
+        data["sintomas"],
+        data["especialidad"],
+        data["doctor"],
+        data["fecha"]
+    ))
 
-        conn.commit()
-        ok = True
-    except:
-        ok = False
-
+    conn.commit()
     conn.close()
-    return ok
+    return True
 
 # =========================
 # ROUTES
@@ -291,33 +263,57 @@ def guardar_turno(data):
 def index():
     return render_template("index.html")
 
+@app.route("/login", methods=["GET","POST"])
+def login():
+    if request.method == "POST":
+        user = request.form["user"]
+        pwd = request.form["pass"]
+
+        if user in USUARIOS and USUARIOS[user] == pwd:
+            session["user"] = user
+            return redirect("/calendario")
+
+    return render_template("login.html")
+
+@app.route("/calendario")
+def calendario():
+    if "user" not in session:
+        return redirect("/login")
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute("SELECT * FROM turnos")
+    turnos = c.fetchall()
+    conn.close()
+
+    return render_template("calendario.html", turnos=turnos)
+
 @app.route("/triage", methods=["POST"])
 def triage_route():
 
     texto = request.json.get("texto")
-
     data = triage(texto)
 
     if data["urgencia"] == "ALTA":
         return jsonify({
-            "alerta": "⚠️ URGENCIA ALTA - ir a guardia",
-            "especialidad": data["especialidad"],
-            "recomendaciones": data["recomendaciones"],
-            "medicos": []
+            "alerta": "⚠️ URGENCIA - acudir a guardia",
+            "medicos": [],
+            "recomendaciones": data["recomendaciones"]
         })
 
     medicos = generar_turnos(data["especialidad"])
 
     return jsonify({
         "especialidad": data["especialidad"],
-        "medicos": medicos if medicos else [],
+        "medicos": medicos,
         "recomendaciones": data["recomendaciones"]
     })
 
 @app.route("/confirmar", methods=["POST"])
 def confirmar():
-    ok = guardar_turno(request.json)
-    return jsonify({"ok": ok})
+    guardar_turno(request.json)
+    return jsonify({"ok": True})
 
+# =========================
 if __name__ == "__main__":
     app.run(debug=True)
