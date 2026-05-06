@@ -184,35 +184,63 @@ def triage_route():
 @app.route("/confirmar", methods=["POST"])
 def confirmar():
     try:
-        data = request.get_json(force=True)
+        data = request.get_json(silent=True)
 
-        nombre = data.get("nombre","").strip()
-        dni = data.get("dni","").strip()
-        sintomas = data.get("sintomas","").strip()
-        especialidad = data.get("especialidad","").strip()
-        doctor = data.get("doctor","").strip()
-        fecha = data.get("fecha","").strip().replace("hs","")
+        if not data:
+            return jsonify({"ok": False, "error": "No JSON recibido"}), 400
+
+        nombre = data.get("nombre", "").strip()
+        dni = data.get("dni", "").strip()
+        sintomas = data.get("sintomas", "").strip()
+        especialidad = data.get("especialidad", "").strip()
+        doctor = data.get("doctor", "").strip()
+        fecha = data.get("fecha", "").strip().replace("hs", "")
+
+        # 🔴 VALIDACIÓN CRÍTICA
+        if not all([nombre, dni, sintomas, especialidad, doctor, fecha]):
+            return jsonify({
+                "ok": False,
+                "error": "Faltan datos en el turno"
+            }), 400
 
         horarios_validos = ["09:00", "12:00", "16:00", "18:00"]
 
         if fecha not in horarios_validos:
-            return jsonify({"ok": False, "error": "Horario inválido"}), 400
+            return jsonify({
+                "ok": False,
+                "error": f"Horario inválido: {fecha}"
+            }), 400
 
         conn = sqlite3.connect(DB)
         c = conn.cursor()
 
+        # 🔴 EVITA DOBLE TURNO
         c.execute("""
         SELECT id FROM turnos
         WHERE doctor=? AND fecha=?
         """, (doctor, fecha))
 
         if c.fetchone():
-            return jsonify({"ok": False, "error": "Turno ocupado"}), 409
+            conn.close()
+            return jsonify({
+                "ok": False,
+                "error": "Ese turno ya está ocupado"
+            }), 409
 
         c.execute("""
-        INSERT INTO turnos (nombre,dni,sintomas,especialidad,doctor,fecha,urgencia)
+        INSERT INTO turnos (
+            nombre,dni,sintomas,especialidad,doctor,fecha,urgencia
+        )
         VALUES (?,?,?,?,?,?,?)
-        """, (nombre,dni,sintomas,especialidad,doctor,fecha,"MEDIA"))
+        """, (
+            nombre,
+            dni,
+            sintomas,
+            especialidad,
+            doctor,
+            fecha,
+            "MEDIA"
+        ))
 
         conn.commit()
         conn.close()
@@ -220,8 +248,11 @@ def confirmar():
         return jsonify({"ok": True})
 
     except Exception as e:
-        logging.error(str(e))
-        return jsonify({"ok": False}), 500
+        logging.error("CONFIRMAR ERROR: " + str(e))
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
 
 # =========================
 @app.route("/")
