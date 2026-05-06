@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+import re
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect
 
@@ -46,13 +47,9 @@ def init_db():
     )
     """)
 
-    # =========================
     # USUARIO DE PRUEBA
-    # =========================
     c.execute("SELECT id FROM usuarios WHERE username = ?", ("admin",))
-    existe = c.fetchone()
-
-    if not existe:
+    if not c.fetchone():
         c.execute("""
         INSERT INTO usuarios (username, password, rol)
         VALUES (?, ?, ?)
@@ -70,7 +67,19 @@ def validar_texto(texto):
     return texto and isinstance(texto, str) and len(texto.strip()) >= 3
 
 # =========================
-# MÉDICOS REALES POR ESPECIALIDAD
+# NORMALIZACIÓN
+# =========================
+def normalizar(texto):
+    texto = texto.lower()
+    texto = re.sub(r"[^a-záéíóúñü\s]", " ", texto)
+    texto = re.sub(r"\s+", " ", texto).strip()
+    return texto
+
+def match(texto, palabras):
+    return any(re.search(rf"\b{p}\b", texto) for p in palabras)
+
+# =========================
+# MÉDICOS
 # =========================
 def generar_turnos(especialidad):
 
@@ -93,19 +102,13 @@ def generar_turnos(especialidad):
     return medicos.get(especialidad, ["Dr. Disponible 1", "Dr. Disponible 2"])
 
 # =========================
-# TRIAGE (NO MODIFICADO - ESTRICTO)
+# TRIAGE (ESTRICTO CORREGIDO)
 # =========================
 def triage(texto):
 
-    t = texto.lower()
+    t = normalizar(texto)
 
-    # =========================
-    # CARDIOLOGÍA
-    # =========================
-    if any(x in t for x in [
-        "pecho","opresión","infarto","palpitaciones","taquicardia","arritmia",
-        "dolor cardíaco","falta de aire con esfuerzo"
-    ]):
+    if match(t, ["pecho","opresión","infarto","palpitaciones","taquicardia","arritmia","dolor cardíaco","falta de aire"]):
         return "ALTA","cardiología",[
             "Acudir inmediatamente a guardia",
             "No realizar actividad física",
@@ -114,13 +117,7 @@ def triage(texto):
             "No quedarse solo"
         ]
 
-    # =========================
-    # NEUROLOGÍA
-    # =========================
-    if any(x in t for x in [
-        "convulsión","desmayo","mareo fuerte","pérdida de conocimiento",
-        "parálisis","debilidad","hormigueo","cefalea intensa"
-    ]):
+    if match(t, ["convulsión","desmayo","mareo","pérdida","parálisis","debilidad","hormigueo","cefalea"]):
         return "ALTA","neurología",[
             "Acudir urgente",
             "Evitar conducir",
@@ -129,115 +126,7 @@ def triage(texto):
             "Control médico urgente"
         ]
 
-    # =========================
-    # GINECOLOGÍA
-    # =========================
-    if any(x in t for x in [
-        "vaginal","flujo","menstrual","útero","ovarios","sangrado vaginal",
-        "dolor pélvico"
-    ]):
-        return "MEDIA","ginecología",[
-            "Evitar relaciones sexuales",
-            "Controlar sangrado",
-            "Higiene íntima adecuada",
-            "Evitar esfuerzos",
-            "Consulta ginecológica"
-        ]
-
-    # =========================
-    # OBSTETRICIA
-    # =========================
-    if any(x in t for x in [
-        "embarazada","contracciones","parto","movimientos del bebé",
-        "pérdida de líquido"
-    ]):
-        return "ALTA","obstetricia",[
-            "Acudir a guardia obstétrica",
-            "Control fetal inmediato",
-            "Reposo absoluto",
-            "Hidratación",
-            "Acompañamiento"
-        ]
-
-    # =========================
-    # TRAUMATOLOGÍA
-    # =========================
-    if any(x in t for x in [
-        "golpe","fractura","luxación","torcedura","esguince","caída",
-        "dolor óseo","lesión"
-    ]):
-        return "MEDIA","traumatología",[
-            "Inmovilizar la zona",
-            "Aplicar frío local",
-            "Evitar movimiento",
-            "Reposo",
-            "Consulta traumatológica"
-        ]
-
-    # =========================
-    # DERMATOLOGÍA
-    # =========================
-    if any(x in t for x in [
-        "piel","mancha","erupción","roncha","picazón","alergia","dermatitis"
-    ]):
-        return "BAJA","dermatología",[
-            "Evitar rascarse",
-            "Mantener higiene",
-            "Evitar exposición solar",
-            "Usar cremas suaves",
-            "Consulta dermatológica"
-        ]
-
-    # =========================
-    # OFTALMOLOGÍA
-    # =========================
-    if any(x in t for x in [
-        "ojo","visión","vista","lagrimeo","ardor ocular","visión borrosa"
-    ]):
-        return "MEDIA","oftalmología",[
-            "Evitar pantallas",
-            "No frotar ojos",
-            "Usar lágrimas artificiales",
-            "Descanso visual",
-            "Consulta oftalmológica"
-        ]
-
-    # =========================
-    # ODONTOLOGÍA
-    # =========================
-    if any(x in t for x in [
-        "diente","muela","encía","dolor dental","infección dental"
-    ]):
-        return "MEDIA","odontología",[
-            "Evitar alimentos duros",
-            "Mantener higiene bucal",
-            "Enjuague con agua tibia",
-            "Evitar frío/calor",
-            "Consulta odontológica"
-        ]
-
-    # =========================
-    # GASTROENTEROLOGÍA
-    # =========================
-    if any(x in t for x in [
-        "estómago","náuseas","vómitos","diarrea","acidez","digestión",
-        "dolor abdominal"
-    ]):
-        return "MEDIA","gastroenterología",[
-            "Dieta liviana",
-            "Hidratación constante",
-            "Evitar grasas",
-            "Reposo",
-            "Consulta médica"
-        ]
-
-    # =========================
-    # NEFROLOGÍA
-    # =========================
-    if any(x in t for x in [
-        "riñón","orina","dolor lumbar urinario","infección urinaria",
-        "ardor al orinar"
-    ]):
+    if match(t, ["riñón","orina","urinario","ardor","infección urinaria","dolor lumbar"]):
         return "MEDIA","nefrología",[
             "Aumentar hidratación",
             "Evitar sal",
@@ -246,12 +135,70 @@ def triage(texto):
             "Consulta especialista"
         ]
 
-    # =========================
-    # NEUMONOLOGÍA
-    # =========================
-    if any(x in t for x in [
-        "tos","respirar","falta de aire","asma","bronquios","pulmón"
-    ]):
+    if match(t, ["embarazada","contracciones","parto","movimientos","líquido"]):
+        return "ALTA","obstetricia",[
+            "Acudir a guardia obstétrica",
+            "Control fetal inmediato",
+            "Reposo absoluto",
+            "Hidratación",
+            "Acompañamiento"
+        ]
+
+    if match(t, ["vaginal","flujo","menstrual","útero","ovarios","sangrado","pélvico"]):
+        return "MEDIA","ginecología",[
+            "Evitar relaciones sexuales",
+            "Controlar sangrado",
+            "Higiene íntima adecuada",
+            "Evitar esfuerzos",
+            "Consulta ginecológica"
+        ]
+
+    if match(t, ["fractura","luxación","esguince","golpe","caída","dolor óseo","lesión"]):
+        return "MEDIA","traumatología",[
+            "Inmovilizar la zona",
+            "Aplicar frío local",
+            "Evitar movimiento",
+            "Reposo",
+            "Consulta traumatológica"
+        ]
+
+    if match(t, ["piel","mancha","erupción","roncha","picazón","alergia","dermatitis"]):
+        return "BAJA","dermatología",[
+            "Evitar rascarse",
+            "Mantener higiene",
+            "Evitar exposición solar",
+            "Usar cremas suaves",
+            "Consulta dermatológica"
+        ]
+
+    if match(t, ["ojo","visión","vista","lagrimeo","ardor","borrosa"]):
+        return "MEDIA","oftalmología",[
+            "Evitar pantallas",
+            "No frotar ojos",
+            "Lágrimas artificiales",
+            "Descanso visual",
+            "Consulta oftalmológica"
+        ]
+
+    if match(t, ["diente","muela","encía","dolor dental","infección"]):
+        return "MEDIA","odontología",[
+            "Evitar alimentos duros",
+            "Higiene bucal",
+            "Enjuague tibio",
+            "Evitar frío/calor",
+            "Consulta odontológica"
+        ]
+
+    if match(t, ["estómago","náuseas","vómitos","diarrea","acidez","digestión","abdomen"]):
+        return "MEDIA","gastroenterología",[
+            "Dieta liviana",
+            "Hidratación",
+            "Evitar grasas",
+            "Reposo",
+            "Consulta médica"
+        ]
+
+    if match(t, ["tos","respirar","falta de aire","asma","bronquios","pulmón"]):
         return "ALTA","neumonología",[
             "Evitar esfuerzo físico",
             "Ambiente ventilado",
@@ -260,12 +207,7 @@ def triage(texto):
             "Consulta urgente"
         ]
 
-    # =========================
-    # PEDIATRÍA
-    # =========================
-    if any(x in t for x in [
-        "bebé","niño","infante","fiebre en niño"
-    ]):
+    if match(t, ["bebé","niño","infante","fiebre"]):
         return "MEDIA","pediatría",[
             "Control de temperatura",
             "Hidratación",
@@ -341,9 +283,7 @@ def confirmar():
 
     return jsonify({"ok": True})
 
-# =========================
-# LOGIN
-# =========================
+# LOGIN / CALENDARIO / ADMIN (SIN CAMBIOS ESTRUCTURALES)
 @app.route("/login", methods=["GET","POST"])
 def login():
     if request.method == "POST":
@@ -363,12 +303,8 @@ def login():
 
     return render_template("login.html")
 
-# =========================
-# CALENDARIO
-# =========================
 @app.route("/calendario")
 def calendario():
-
     if "user" not in session:
         return redirect("/login")
 
@@ -391,12 +327,8 @@ def calendario():
 
     return render_template("calendario.html", turnos=turnos, doctores=doctores)
 
-# =========================
-# ADMIN
-# =========================
 @app.route("/admin")
 def admin():
-
     if session.get("rol") != "admin":
         return redirect("/login")
 
