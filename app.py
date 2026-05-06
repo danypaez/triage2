@@ -60,7 +60,7 @@ def init_db():
 init_db()
 
 # =========================
-# UTIL
+# VALIDACIÓN
 # =========================
 def validar_texto(texto):
     return texto and isinstance(texto, str) and len(texto.strip()) >= 3
@@ -68,7 +68,6 @@ def validar_texto(texto):
 def normalizar(texto):
     texto = texto.lower()
     texto = texto.replace("riñones", "riñón")
-    texto = texto.replace("orinar", "orina")
     texto = re.sub(r"\s+", " ", texto)
     return texto
 
@@ -76,11 +75,11 @@ def match(texto, palabras):
     return any(p in texto for p in palabras)
 
 # =========================
-# MÉDICOS + HORARIOS (FIX CLAVE)
+# MÉDICOS + HORARIOS
 # =========================
 def generar_turnos(especialidad):
 
-    base = {
+    medicos = {
         "cardiología": ["Dr. López", "Dra. Martínez"],
         "neurología": ["Dr. Gómez", "Dra. Ruiz"],
         "nefrología": ["Dr. Benítez", "Dra. Acosta"],
@@ -96,77 +95,73 @@ def generar_turnos(especialidad):
         "clínica médica": ["Dr. General 1", "Dr. General 2"]
     }
 
-    medicos = base.get(especialidad, ["Dr. Disponible 1"])
+    horarios_base = ["09:00", "12:00", "16:00", "18:00"]
 
     return [
         {
             "doctor": m,
-            "turnos": [
-                (datetime.now() + timedelta(hours=2)).strftime("%H:%M"),
-                (datetime.now() + timedelta(hours=4)).strftime("%H:%M"),
-                (datetime.now() + timedelta(hours=6)).strftime("%H:%M")
-            ]
+            "turnos": horarios_base
         }
-        for m in medicos
+        for m in medicos.get(especialidad, ["Dr. Disponible"])
     ]
 
 # =========================
-# TRIAGE (MEJORADO SIN CAMBIAR LOGICA MEDICA)
+# TRIAGE
 # =========================
 def triage(texto):
 
     t = normalizar(texto)
 
-    if match(t, ["pecho","opresión","infarto","taquicardia","arritmia","dolor cardíaco","falta de aire"]):
+    if match(t, ["pecho","infarto","taquicardia","arritmia","dolor cardíaco","falta de aire"]):
         return "ALTA","cardiología",["Urgente"]
 
-    if match(t, ["convulsión","desmayo","mareo","pérdida","parálisis","cefalea"]):
+    if match(t, ["convulsión","desmayo","pérdida","cefalea"]):
         return "ALTA","neurología",["Urgente"]
 
     if match(t, ["riñón","orina","urinario","ardor","infección","dolor lumbar"]):
-        return "MEDIA","nefrología",["Control de hidratación"]
+        return "MEDIA","nefrología",["Control"]
 
-    if match(t, ["embarazada","contracciones","parto","líquido"]):
+    if match(t, ["embarazada","contracciones","parto"]):
         return "ALTA","obstetricia",["Urgente"]
 
-    if match(t, ["vaginal","flujo","menstrual","pélvico"]):
-        return "MEDIA","ginecología",["Control ginecológico"]
+    if match(t, ["vaginal","flujo","pélvico"]):
+        return "MEDIA","ginecología",["Control"]
 
-    if match(t, ["fractura","luxación","esguince","golpe","caída"]):
+    if match(t, ["fractura","luxación","golpe"]):
         return "MEDIA","traumatología",["Reposo"]
 
-    if match(t, ["piel","erupción","roncha","alergia"]):
-        return "BAJA","dermatología",["Higiene"]
+    if match(t, ["piel","roncha","alergia"]):
+        return "BAJA","dermatología",["Control"]
 
     if match(t, ["ojo","visión","borrosa"]):
         return "MEDIA","oftalmología",["Control"]
 
     if match(t, ["diente","muela","encía"]):
-        return "MEDIA","odontología",["Consulta"]
+        return "MEDIA","odontología",["Control"]
 
     if match(t, ["estómago","náuseas","diarrea","abdomen"]):
         return "MEDIA","gastroenterología",["Dieta"]
 
-    if match(t, ["tos","respirar","asma","pulmón"]):
+    if match(t, ["tos","asma","pulmón"]):
         return "ALTA","neumonología",["Urgente"]
 
     if match(t, ["bebé","niño","fiebre"]):
         return "MEDIA","pediatría",["Control"]
 
-    return "BAJA","clínica médica",["Control general"]
+    return "BAJA","clínica médica",["Control"]
 
 # =========================
-# RUTA TRIAGE
+# TRIAGE ENDPOINT
 # =========================
 @app.route("/triage", methods=["POST"])
 def triage_route():
     try:
         data = request.get_json()
 
-        if not data or not validar_texto(data.get("texto")):
-            return jsonify({"ok": False}), 400
+        texto = data.get("texto")
 
-        texto = data["texto"]
+        if not validar_texto(texto):
+            return jsonify({"ok": False}), 400
 
         urg, esp, rec = triage(texto)
         medicos = generar_turnos(esp)
@@ -184,36 +179,80 @@ def triage_route():
         return jsonify({"ok": False}), 500
 
 # =========================
-# CONFIRMAR
+# CONFIRMAR TURNO (FIX FINAL IMPORTANTE)
 # =========================
 @app.route("/confirmar", methods=["POST"])
 def confirmar():
-    data = request.json
+    try:
+        data = request.get_json()
 
-    fecha = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
+        nombre = data["nombre"]
+        dni = data["dni"]
+        sintomas = data["sintomas"]
+        especialidad = data["especialidad"]
+        doctor = data["doctor"]
+        fecha = data["fecha"]
 
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
+        # VALIDACIÓN DE HORARIO (CLAVE FIX)
+        horarios_validos = ["09:00", "12:00", "16:00", "18:00"]
 
-    c.execute("""
-    INSERT INTO turnos (nombre,dni,sintomas,especialidad,doctor,fecha,urgencia)
-    VALUES (?,?,?,?,?,?,?)
-    """,(
-        data["nombre"],
-        data["dni"],
-        data["sintomas"],
-        data["especialidad"],
-        data["doctor"],
-        fecha,
-        "MEDIA"
-    ))
+        if fecha not in horarios_validos:
+            return jsonify({"ok": False, "error": "Horario inválido"}), 400
 
-    conn.commit()
-    conn.close()
+        conn = sqlite3.connect(DB)
+        c = conn.cursor()
 
-    return jsonify({"ok": True})
+        # EVITA DOBLE RESERVA
+        c.execute("""
+        SELECT id FROM turnos
+        WHERE doctor=? AND fecha=?
+        """, (doctor, fecha))
+
+        if c.fetchone():
+            return jsonify({"ok": False, "error": "Turno ocupado"}), 409
+
+        c.execute("""
+        INSERT INTO turnos (nombre,dni,sintomas,especialidad,doctor,fecha,urgencia)
+        VALUES (?,?,?,?,?,?,?)
+        """, (
+            nombre,
+            dni,
+            sintomas,
+            especialidad,
+            doctor,
+            fecha,
+            "MEDIA"
+        ))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"ok": True})
+
+    except Exception as e:
+        logging.error(str(e))
+        return jsonify({"ok": False}), 500
 
 # =========================
 @app.route("/")
 def index():
     return render_template("index.html")
+
+@app.route("/calendario")
+def calendario():
+
+    if "user" not in session:
+        return redirect("/login")
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM turnos")
+    turnos = c.fetchall()
+
+    conn.close()
+
+    return render_template("calendario.html", turnos=turnos)
+
+if __name__ == "__main__":
+    app.run(debug=True)
