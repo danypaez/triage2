@@ -1,20 +1,11 @@
-import os
 import sqlite3
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect
 
 app = Flask(__name__)
-app.secret_key = "clave_secreta"
+app.secret_key = "super_secret_key"
 
 DB = "turnos.db"
-
-# =========================
-# USUARIOS
-# =========================
-USUARIOS = {
-    "admin": "1234",
-    "doctor": "1234"
-}
 
 # =========================
 # DB
@@ -31,7 +22,17 @@ def init_db():
         sintomas TEXT,
         especialidad TEXT,
         doctor TEXT,
-        fecha TEXT
+        fecha TEXT,
+        urgencia TEXT
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password TEXT,
+        rol TEXT
     )
     """)
 
@@ -41,279 +42,363 @@ def init_db():
 init_db()
 
 # =========================
-# ESPECIALIDADES (AMPLIAS)
+# TRIAGE (mantenemos el tuyo)
 # =========================
-ESPECIALIDADES = {
-
-    "cardiología": [
-        "pecho","infarto","palpitaciones","presion","presión","corazon","corazón",
-        "taquicardia","arritmia","latidos","hipertension","hipotension"
-    ],
-
-    "ginecología": [
-        "menstruacion","menstruación","regla","flujo","vaginal","útero","utero",
-        "ovarios","dolor pelvico","dolor pélvico","sangrado vaginal"
-    ],
-
-    "obstetricia": [
-        "embarazo","embarazada","gestacion","gestación","parto","contracciones",
-        "prenatal","feto"
-    ],
-
-    "traumatología": [
-        "golpe","fractura","torcedura","esguince","luxacion","luxación",
-        "hueso","rodilla","hombro","caida","caída","lesion","lesión"
-    ],
-
-    "dermatología": [
-        "piel","mancha","erupcion","erupción","picazon","picazón",
-        "acne","acné","dermatitis","roncha"
-    ],
-
-    "odontología": [
-        "diente","muela","encía","encia","caries","dolor dental",
-        "infeccion bucal"
-    ],
-
-    "oftalmología": [
-        "ojo","ojos","vision","visión","ver borroso","lagrimeo",
-        "ardor ocular"
-    ],
-
-    "gastroenterología": [
-        "estomago","estómago","dolor abdominal","diarrea","vomitos","vómitos",
-        "nauseas","náuseas","digestivo","acidez","reflujo"
-    ],
-
-    "neurología": [
-        "cabeza","migraña","migraña","mareo","mareos","convulsiones",
-        "desmayo","hormigueo","neurologico"
-    ],
-
-    "neumonología": [
-        "respirar","respiracion","respiración","tos","falta de aire",
-        "pulmon","pulmón","asma"
-    ],
-
-    "nefrología": [
-        "riñon","riñón","orina","renal","retencion liquidos","retención líquidos"
-    ],
-
-    "endocrinología": [
-        "diabetes","tiroides","hormonas","glucosa","insulina"
-    ],
-
-    "clínica médica": []  # fallback
-}
-
-# =========================
-# TRIAGE ESTRICTO
-# =========================
-def triage(texto):
+ def triage(texto):
 
     t = texto.lower()
 
-    scores = {}
-
-    # calcular puntajes
-    for especialidad, palabras in ESPECIALIDADES.items():
-        score = 0
-
-        for palabra in palabras:
-            if palabra in t:
-                score += 1
-
-        scores[especialidad] = score
-
-    # elegir mejor
-    especialidad = max(scores, key=scores.get)
-
-    # si todos son 0 → clínica médica
-    if scores[especialidad] == 0:
-        especialidad = "clínica médica"
+    # =========================
+    # CARDIOLOGÍA
+    # =========================
+    if any(x in t for x in [
+        "pecho","opresión","infarto","palpitaciones","taquicardia","arritmia",
+        "dolor cardíaco","falta de aire con esfuerzo"
+    ]):
+        return "ALTA","cardiología",[
+            "Acudir inmediatamente a guardia",
+            "No realizar actividad física",
+            "Mantener reposo absoluto",
+            "Controlar respiración",
+            "No quedarse solo"
+        ]
 
     # =========================
-    # URGENCIA
+    # NEUROLOGÍA
     # =========================
-    urgencia = "BAJA"
+    if any(x in t for x in [
+        "convulsión","desmayo","mareo fuerte","pérdida de conocimiento",
+        "parálisis","debilidad","hormigueo","cefalea intensa"
+    ]):
+        return "ALTA","neurología",[
+            "Acudir urgente",
+            "Evitar conducir",
+            "Reposo inmediato",
+            "Acompañamiento",
+            "Control médico urgente"
+        ]
 
-    if any(x in t for x in ["infarto","no puedo respirar","convulsiones","desmayo"]):
-        urgencia = "ALTA"
-    elif any(x in t for x in ["dolor fuerte","mucho dolor","sangrado"]):
-        urgencia = "MEDIA"
+    # =========================
+    # GINECOLOGÍA
+    # =========================
+    if any(x in t for x in [
+        "vaginal","flujo","menstrual","útero","ovarios","sangrado vaginal",
+        "dolor pélvico"
+    ]):
+        return "MEDIA","ginecología",[
+            "Evitar relaciones sexuales",
+            "Controlar sangrado",
+            "Higiene íntima adecuada",
+            "Evitar esfuerzos",
+            "Consulta ginecológica"
+        ]
 
     # =========================
-    # RECOMENDACIONES (5)
+    # OBSTETRICIA
     # =========================
-    recomendaciones = [
-        "Mantenerse hidratado",
-        "Evitar esfuerzos físicos",
-        "No automedicarse",
-        "Controlar evolución de los síntomas",
-        "Consultar con especialista"
+    if any(x in t for x in [
+        "embarazada","contracciones","parto","movimientos del bebé",
+        "pérdida de líquido"
+    ]):
+        return "ALTA","obstetricia",[
+            "Acudir a guardia obstétrica",
+            "Control fetal inmediato",
+            "Reposo absoluto",
+            "Hidratación",
+            "Acompañamiento"
+        ]
+
+    # =========================
+    # TRAUMATOLOGÍA
+    # =========================
+    if any(x in t for x in [
+        "golpe","fractura","luxación","torcedura","esguince","caída",
+        "dolor óseo","lesión"
+    ]):
+        return "MEDIA","traumatología",[
+            "Inmovilizar la zona",
+            "Aplicar frío local",
+            "Evitar movimiento",
+            "Reposo",
+            "Consulta traumatológica"
+        ]
+
+    # =========================
+    # DERMATOLOGÍA
+    # =========================
+    if any(x in t for x in [
+        "piel","mancha","erupción","roncha","picazón","alergia","dermatitis"
+    ]):
+        return "BAJA","dermatología",[
+            "Evitar rascarse",
+            "Mantener higiene",
+            "Evitar exposición solar",
+            "Usar cremas suaves",
+            "Consulta dermatológica"
+        ]
+
+    # =========================
+    # OFTALMOLOGÍA
+    # =========================
+    if any(x in t for x in [
+        "ojo","visión","vista","lagrimeo","ardor ocular","visión borrosa"
+    ]):
+        return "MEDIA","oftalmología",[
+            "Evitar pantallas",
+            "No frotar ojos",
+            "Usar lágrimas artificiales",
+            "Descanso visual",
+            "Consulta oftalmológica"
+        ]
+
+    # =========================
+    # ODONTOLOGÍA
+    # =========================
+    if any(x in t for x in [
+        "diente","muela","encía","dolor dental","infección dental"
+    ]):
+        return "MEDIA","odontología",[
+            "Evitar alimentos duros",
+            "Mantener higiene bucal",
+            "Enjuague con agua tibia",
+            "Evitar frío/calor",
+            "Consulta odontológica"
+        ]
+
+    # =========================
+    # GASTROENTEROLOGÍA
+    # =========================
+    if any(x in t for x in [
+        "estómago","náuseas","vómitos","diarrea","acidez","digestión",
+        "dolor abdominal"
+    ]):
+        return "MEDIA","gastroenterología",[
+            "Dieta liviana",
+            "Hidratación constante",
+            "Evitar grasas",
+            "Reposo",
+            "Consulta médica"
+        ]
+
+    # =========================
+    # NEFROLOGÍA
+    # =========================
+    if any(x in t for x in [
+        "riñón","orina","dolor lumbar urinario","infección urinaria",
+        "ardor al orinar"
+    ]):
+        return "MEDIA","nefrología",[
+            "Aumentar hidratación",
+            "Evitar sal",
+            "Control urinario",
+            "Reposo",
+            "Consulta especialista"
+        ]
+
+    # =========================
+    # NEUMONOLOGÍA
+    # =========================
+    if any(x in t for x in [
+        "tos","respirar","falta de aire","asma","bronquios","pulmón"
+    ]):
+        return "ALTA","neumonología",[
+            "Evitar esfuerzo físico",
+            "Ambiente ventilado",
+            "Control respiración",
+            "Uso de medicación si posee",
+            "Consulta urgente"
+        ]
+
+    # =========================
+    # PEDIATRÍA
+    # =========================
+    if any(x in t for x in [
+        "bebé","niño","infante","fiebre en niño"
+    ]):
+        return "MEDIA","pediatría",[
+            "Control de temperatura",
+            "Hidratación",
+            "Observación constante",
+            "Reposo",
+            "Consulta pediátrica"
+        ]
+
+    # =========================
+    # DEFAULT CONTROLADO
+    # =========================
+    return "BAJA","clínica médica",[
+        "Reposo",
+        "Hidratación",
+        "Control de síntomas",
+        "Evitar esfuerzos",
+        "Consulta médica"
     ]
 
-    return {
-        "urgencia": urgencia,
-        "especialidad": especialidad,
-        "recomendaciones": recomendaciones
-    }
-
 # =========================
-# HORARIOS
-# =========================
-def generar_slots_dia(fecha):
-    dia = fecha.weekday()
-
-    if dia < 5:
-        inicio, fin = time(9, 0), time(17, 0)
-    else:
-        return []
-
-    slots = []
-    actual = datetime.combine(fecha, inicio)
-    fin_dt = datetime.combine(fecha, fin)
-
-    while actual < fin_dt:
-        slots.append(actual.strftime("%d/%m %H:%M"))
-        actual += timedelta(minutes=30)
-
-    return slots
-
-def turno_disponible(doctor, fecha):
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM turnos WHERE doctor=? AND fecha=?", (doctor, fecha))
-    ocupado = c.fetchone()[0]
-    conn.close()
-    return ocupado == 0
-
-# =========================
-# DOCTORES
-# =========================
-def generar_turnos(especialidad):
-
-    doctores = {
-        "cardiología": ["Dr. Ramírez"],
-        "ginecología": ["Dra. López"],
-        "obstetricia": ["Dra. Fernández"],
-        "traumatología": ["Dr. Gómez"],
-        "dermatología": ["Dra. Silva"],
-        "odontología": ["Dr. Ruiz"],
-        "oftalmología": ["Dr. Díaz"],
-        "gastroenterología": ["Dr. Pérez"],
-        "neurología": ["Dr. Castro"],
-        "neumonología": ["Dr. Vega"],
-        "nefrología": ["Dr. Suárez"],
-        "endocrinología": ["Dr. Méndez"],
-        "clínica médica": ["Dr. General"]
-    }
-
-    lista = doctores.get(especialidad, ["Dr. General"])
-
-    hoy = datetime.now()
-    resultado = []
-
-    for doctor in lista:
-
-        disponibles = []
-
-        for i in range(1, 7):
-            fecha = hoy + timedelta(days=i)
-
-            for slot in generar_slots_dia(fecha):
-                if turno_disponible(doctor, slot):
-                    disponibles.append(slot)
-
-        if disponibles:
-            resultado.append({
-                "doctor": doctor,
-                "turnos": disponibles[:3]
-            })
-
-    return resultado
-
-# =========================
-# GUARDAR
-# =========================
-def guardar_turno(data):
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    c.execute("""
-    INSERT INTO turnos (nombre, dni, sintomas, especialidad, doctor, fecha)
-    VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        data["nombre"],
-        data["dni"],
-        data["sintomas"],
-        data["especialidad"],
-        data["doctor"],
-        data["fecha"]
-    ))
-
-    conn.commit()
-    conn.close()
-    return True
-
-# =========================
-# ROUTES
+# PACIENTE
 # =========================
 @app.route("/")
 def index():
     return render_template("index.html")
 
-@app.route("/login", methods=["GET","POST"])
-def login():
-    if request.method == "POST":
-        user = request.form["user"]
-        pwd = request.form["pass"]
-
-        if user in USUARIOS and USUARIOS[user] == pwd:
-            session["user"] = user
-            return redirect("/calendario")
-
-    return render_template("login.html")
-
-@app.route("/calendario")
-def calendario():
-    if "user" not in session:
-        return redirect("/login")
-
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-    c.execute("SELECT * FROM turnos")
-    turnos = c.fetchall()
-    conn.close()
-
-    return render_template("calendario.html", turnos=turnos)
-
 @app.route("/triage", methods=["POST"])
 def triage_route():
-
     texto = request.json.get("texto")
-    data = triage(texto)
 
-    if data["urgencia"] == "ALTA":
-        return jsonify({
-            "alerta": "⚠️ URGENCIA - acudir a guardia",
-            "medicos": [],
-            "recomendaciones": data["recomendaciones"]
-        })
-
-    medicos = generar_turnos(data["especialidad"])
+    urg, esp, rec = triage(texto)
+    medicos = generar_turnos(esp)
 
     return jsonify({
-        "especialidad": data["especialidad"],
-        "medicos": medicos,
-        "recomendaciones": data["recomendaciones"]
+        "urgencia": urg,
+        "especialidad": esp,
+        "recomendaciones": rec,
+        "medicos": medicos
     })
 
 @app.route("/confirmar", methods=["POST"])
 def confirmar():
-    guardar_turno(request.json)
-    return jsonify({"ok": True})
+    data = request.json
 
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    c.execute("""
+    INSERT INTO turnos (nombre,dni,sintomas,especialidad,doctor,fecha,urgencia)
+    VALUES (?,?,?,?,?,?,?)
+    """,(data["nombre"],data["dni"],data["sintomas"],data["especialidad"],data["doctor"],data["fecha"],"MEDIA"))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok":True})
+
+# =========================
+# LOGIN
+# =========================
+@app.route("/login", methods=["GET","POST"])
+def login():
+    if request.method == "POST":
+        u = request.form["user"]
+        p = request.form["pass"]
+
+        conn = sqlite3.connect(DB)
+        c = conn.cursor()
+        c.execute("SELECT * FROM usuarios WHERE username=? AND password=?", (u,p))
+        user = c.fetchone()
+        conn.close()
+
+        if user:
+            session["user"] = u
+            session["rol"] = user[3]
+            return redirect("/calendario")
+
+    return render_template("login.html")
+
+# =========================
+# CALENDARIO CON FILTRO
+# =========================
+@app.route("/calendario")
+def calendario():
+
+    if "user" not in session:
+        return redirect("/login")
+
+    doctor = request.args.get("doctor")
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    if doctor:
+        c.execute("SELECT * FROM turnos WHERE doctor=?", (doctor,))
+    else:
+        c.execute("SELECT * FROM turnos")
+
+    turnos = c.fetchall()
+
+    c.execute("SELECT DISTINCT doctor FROM turnos")
+    doctores = [d[0] for d in c.fetchall()]
+
+    conn.close()
+
+    return render_template("calendario.html", turnos=turnos, doctores=doctores)
+
+# =========================
+# EDITAR TURNO
+# =========================
+@app.route("/editar/<int:id>", methods=["POST"])
+def editar(id):
+
+    data = request.form
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    c.execute("""
+    UPDATE turnos
+    SET nombre=?, dni=?, sintomas=?, fecha=?
+    WHERE id=?
+    """,(data["nombre"],data["dni"],data["sintomas"],data["fecha"],id))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/calendario")
+
+# =========================
+# BORRAR
+# =========================
+@app.route("/borrar/<int:id>")
+def borrar(id):
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    c.execute("DELETE FROM turnos WHERE id=?", (id,))
+    conn.commit()
+    conn.close()
+
+    return redirect("/calendario")
+
+# =========================
+# PANEL ADMIN USUARIOS
+# =========================
+@app.route("/admin")
+def admin():
+
+    if session.get("rol") != "admin":
+        return redirect("/login")
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM usuarios")
+    users = c.fetchall()
+
+    conn.close()
+
+    return render_template("admin.html", users=users)
+
+@app.route("/crear_usuario", methods=["POST"])
+def crear_usuario():
+
+    if session.get("rol") != "admin":
+        return redirect("/login")
+
+    data = request.form
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    c.execute("INSERT INTO usuarios (username,password,rol) VALUES (?,?,?)",
+              (data["user"], data["pass"], data["rol"]))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/admin")
+
+# =========================
+# RUN
 # =========================
 if __name__ == "__main__":
     app.run(debug=True)
