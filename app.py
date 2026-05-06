@@ -36,6 +36,20 @@ def init_db():
     )
     """)
 
+    # =========================
+    # USUARIO DE PRUEBA
+    # =========================
+    c.execute("SELECT id FROM usuarios WHERE username = ?", ("admin",))
+    existe = c.fetchone()
+
+    if not existe:
+        c.execute("""
+        INSERT INTO usuarios (username, password, rol)
+        VALUES (?, ?, ?)
+        """, ("admin", "1234", "admin"))
+
+        print("✔ Usuario admin creado (PRUEBA)")
+
     conn.commit()
     conn.close()
 
@@ -48,9 +62,6 @@ def triage(texto):
 
     t = texto.lower()
 
-    # =========================
-    # CARDIOLOGÍA
-    # =========================
     if any(x in t for x in [
         "pecho","opresión","infarto","palpitaciones","taquicardia","arritmia",
         "dolor cardíaco","falta de aire con esfuerzo"
@@ -63,9 +74,6 @@ def triage(texto):
             "No quedarse solo"
         ]
 
-    # =========================
-    # NEUROLOGÍA
-    # =========================
     if any(x in t for x in [
         "convulsión","desmayo","mareo fuerte","pérdida de conocimiento",
         "parálisis","debilidad","hormigueo","cefalea intensa"
@@ -78,9 +86,6 @@ def triage(texto):
             "Control médico urgente"
         ]
 
-    # =========================
-    # GINECOLOGÍA
-    # =========================
     if any(x in t for x in [
         "vaginal","flujo","menstrual","útero","ovarios","sangrado vaginal",
         "dolor pélvico"
@@ -93,9 +98,6 @@ def triage(texto):
             "Consulta ginecológica"
         ]
 
-    # =========================
-    # OBSTETRICIA
-    # =========================
     if any(x in t for x in [
         "embarazada","contracciones","parto","movimientos del bebé",
         "pérdida de líquido"
@@ -108,9 +110,6 @@ def triage(texto):
             "Acompañamiento"
         ]
 
-    # =========================
-    # TRAUMATOLOGÍA
-    # =========================
     if any(x in t for x in [
         "golpe","fractura","luxación","torcedura","esguince","caída",
         "dolor óseo","lesión"
@@ -123,9 +122,6 @@ def triage(texto):
             "Consulta traumatológica"
         ]
 
-    # =========================
-    # DERMATOLOGÍA
-    # =========================
     if any(x in t for x in [
         "piel","mancha","erupción","roncha","picazón","alergia","dermatitis"
     ]):
@@ -137,9 +133,6 @@ def triage(texto):
             "Consulta dermatológica"
         ]
 
-    # =========================
-    # OFTALMOLOGÍA
-    # =========================
     if any(x in t for x in [
         "ojo","visión","vista","lagrimeo","ardor ocular","visión borrosa"
     ]):
@@ -151,9 +144,6 @@ def triage(texto):
             "Consulta oftalmológica"
         ]
 
-    # =========================
-    # ODONTOLOGÍA
-    # =========================
     if any(x in t for x in [
         "diente","muela","encía","dolor dental","infección dental"
     ]):
@@ -165,9 +155,6 @@ def triage(texto):
             "Consulta odontológica"
         ]
 
-    # =========================
-    # GASTROENTEROLOGÍA
-    # =========================
     if any(x in t for x in [
         "estómago","náuseas","vómitos","diarrea","acidez","digestión",
         "dolor abdominal"
@@ -180,9 +167,6 @@ def triage(texto):
             "Consulta médica"
         ]
 
-    # =========================
-    # NEFROLOGÍA
-    # =========================
     if any(x in t for x in [
         "riñón","orina","dolor lumbar urinario","infección urinaria",
         "ardor al orinar"
@@ -195,9 +179,6 @@ def triage(texto):
             "Consulta especialista"
         ]
 
-    # =========================
-    # NEUMONOLOGÍA
-    # =========================
     if any(x in t for x in [
         "tos","respirar","falta de aire","asma","bronquios","pulmón"
     ]):
@@ -209,9 +190,6 @@ def triage(texto):
             "Consulta urgente"
         ]
 
-    # =========================
-    # PEDIATRÍA
-    # =========================
     if any(x in t for x in [
         "bebé","niño","infante","fiebre en niño"
     ]):
@@ -223,9 +201,6 @@ def triage(texto):
             "Consulta pediátrica"
         ]
 
-    # =========================
-    # DEFAULT CONTROLADO
-    # =========================
     return "BAJA","clínica médica",[
         "Reposo",
         "Hidratación",
@@ -295,7 +270,7 @@ def login():
     return render_template("login.html")
 
 # =========================
-# CALENDARIO CON FILTRO
+# CALENDARIO
 # =========================
 @app.route("/calendario")
 def calendario():
@@ -322,9 +297,6 @@ def calendario():
 
     return render_template("calendario.html", turnos=turnos, doctores=doctores)
 
-# =========================
-# EDITAR TURNO
-# =========================
 @app.route("/editar/<int:id>", methods=["POST"])
 def editar(id):
 
@@ -344,9 +316,6 @@ def editar(id):
 
     return redirect("/calendario")
 
-# =========================
-# BORRAR
-# =========================
 @app.route("/borrar/<int:id>")
 def borrar(id):
 
@@ -360,7 +329,7 @@ def borrar(id):
     return redirect("/calendario")
 
 # =========================
-# PANEL ADMIN USUARIOS
+# ADMIN
 # =========================
 @app.route("/admin")
 def admin():
