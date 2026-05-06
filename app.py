@@ -44,7 +44,7 @@ init_db()
 # =========================
 # TRIAGE (mantenemos el tuyo)
 # =========================
- def triage(texto):
+def triage(texto):
 
     t = texto.lower()
 
