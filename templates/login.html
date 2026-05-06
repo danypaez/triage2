@@ -3,27 +3,22 @@
 <head>
 <title>Login</title>
 <style>
-body {background:#0f172a;color:white;font-family:Arial;display:flex;justify-content:center;align-items:center;height:100vh;}
-.box {background:#1e293b;padding:30px;border-radius:10px;width:300px;}
-input,button{width:100%;padding:10px;margin:10px 0;border-radius:5px;border:none;}
-button{background:#22c55e;color:white;}
-.error{color:red;}
+body {background:#020617;color:white;text-align:center;font-family:Arial;}
+.box {margin-top:100px;}
+input,button {padding:10px;margin:5px;border-radius:8px;border:none;}
+button {background:#00c6ff;color:white;}
 </style>
 </head>
 <body>
+
 <div class="box">
-<h2>Login</h2>
-
-{% if error %}
-<div class="error">{{ error }}</div>
-{% endif %}
-
+<h2>Login Médico</h2>
 <form method="POST">
-<input name="usuario" placeholder="Usuario">
-<input name="password" type="password" placeholder="Contraseña">
+<input name="user" placeholder="Usuario"><br>
+<input name="pass" type="password" placeholder="Contraseña"><br>
 <button>Ingresar</button>
 </form>
-
 </div>
+
 </body>
 </html>
