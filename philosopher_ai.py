@@ -6,6 +6,9 @@ import os
 # =========================
 API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
+print("VARIABLES DEL SISTEMA:")
+print(os.environ)
+
 print("OPENROUTER:", API_KEY)
 
 # =========================
