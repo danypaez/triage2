@@ -217,3 +217,7 @@ SCROLL
 
     border-radius:10px;
 }
+a {
+    color: white;
+    text-decoration: none;
+}
