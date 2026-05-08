@@ -1,26 +1,8 @@
 from openai import OpenAI
-from dotenv import load_dotenv
 import os
 
 # =========================
-# ENV
-# =========================
-load_dotenv()
-
-API_KEY = os.environ["OPENROUTER_API_KEY"]
-
-print("OPENROUTER:", API_KEY)
-
-# =========================
-# CLIENT
-# =========================
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=API_KEY
-)
-
-# =========================
-# RESPUESTA LOCAL SOLO EMERGENCIA
+# FALLBACK
 # =========================
 def fallback():
 
@@ -34,21 +16,40 @@ def fallback():
 # =========================
 def responder(nombre, mensaje):
 
-    prompt = f"""
+    API_KEY = os.environ.get("OPENROUTER_API_KEY")
+
+    print("OPENROUTER:", API_KEY)
+
+    # =========================
+    # SI NO HAY API
+    # =========================
+    if not API_KEY:
+
+        print("NO EXISTE API KEY")
+
+        return fallback()
+
+    try:
+
+        # =========================
+        # CLIENTE
+        # =========================
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=API_KEY
+        )
+
+        prompt = f"""
 Sos un filósofo contemplativo especializado en Espiritualidad Universal y pensamiento no dualista.
 
 IMPORTANTE:
-- Respondé como un ser humano sabio.
+- Respondé como un filósofo humano.
 - Nunca digas que sos IA.
 - Nunca uses listas.
 - Nunca uses markdown.
-- No respondas genéricamente.
-- Reflexioná específicamente sobre lo que la persona expresa.
-- Máximo 1 párrafos. De un máximo de 6 líneas.
-- Sé cálido, humano, profundo y espiritual.
-- Que termine con mensaje de aliento o esperanza.
--Lenguaje argentino, cercano, coloquial, con metáforas y poesía.
-
+- Sé profundo, cálido y humano.
+- Máximo 2 párrafos.
+- Respondé específicamente a lo que la persona expresa.
 
 Nombre:
 {nombre}
@@ -57,11 +58,6 @@ Consulta:
 {mensaje}
 """
 
-    try:
-
-        # =========================
-        # OPENROUTER REAL
-        # =========================
         completion = client.chat.completions.create(
 
             model="openai/gpt-3.5-turbo",
@@ -75,16 +71,14 @@ Consulta:
 
             temperature=0.9,
             max_tokens=300
-
         )
 
         texto = completion.choices[0].message.content.strip()
 
-        print("✅ RESPUESTA IA:")
+        print("RESPUESTA IA:")
         print(texto)
 
         if texto and len(texto) > 20:
-
             return texto
 
     except Exception as e:
@@ -92,7 +86,4 @@ Consulta:
         print("ERROR OPENROUTER:")
         print(e)
 
-    # =========================
-    # FALLBACK SOLO SI FALLA
-    # =========================
     return fallback()
