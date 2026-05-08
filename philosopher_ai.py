@@ -7,7 +7,7 @@ import os
 # =========================
 load_dotenv()
 
-API_KEY = os.getenv("OPENROUTER_API_KEY")
+API_KEY = os.environ["OPENROUTER_API_KEY"]
 
 print("OPENROUTER:", API_KEY)
 
