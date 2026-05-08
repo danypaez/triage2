@@ -23,52 +23,37 @@ function agregar(tipo, texto) {
 // =========================
 // VOZ
 // =========================
-function hablar(texto) {
+ function hablarTexto(texto) {
 
-    return new Promise(async (resolve) => {
+    speechSynthesis.cancel();
 
-        try {
+    const voz = new SpeechSynthesisUtterance(texto);
 
-            const res = await fetch("/voz", {
+    voz.lang = "es-AR";
 
-                method: "POST",
+    voz.rate = 0.95;
+    voz.pitch = 1;
+    voz.volume = 1;
 
-                headers: {
-                    "Content-Type": "application/json"
-                },
+    // voces más naturales
+    const voces = speechSynthesis.getVoices();
 
-                body: JSON.stringify({
-                    texto
-                })
-            });
+    const vozNatural =
+        voces.find(v =>
+            v.lang.includes("es") &&
+            (
+                v.name.includes("Google") ||
+                v.name.includes("Microsoft") ||
+                v.name.includes("Sabina") ||
+                v.name.includes("Helena")
+            )
+        );
 
-            const data = await res.json();
+    if (vozNatural) {
+        voz.voice = vozNatural;
+    }
 
-            if (!data.audio) {
-
-                resolve();
-                return;
-            }
-
-            const audio = document.getElementById("audio");
-
-            audio.src = data.audio;
-
-            audio.onended = () => {
-                resolve();
-            };
-
-            audio.play().catch(() => {
-                resolve();
-            });
-
-        } catch (e) {
-
-            console.log("ERROR VOZ:", e);
-
-            resolve();
-        }
-    });
+    speechSynthesis.speak(voz);
 }
 
 // =========================
