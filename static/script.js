@@ -79,31 +79,41 @@ function despedidaHora() {
 // =========================
 function esNo(texto) {
 
-    const t = texto.toLowerCase().trim();
+    const t = texto
+        .toLowerCase()
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
 
     const negativas = [
 
         "no",
         "no gracias",
+        "gracias no",
         "nada mas",
-        "nada más",
         "eso es todo",
         "ninguna",
         "ninguno",
-        "no tengo más consultas",
         "no tengo mas consultas",
         "no deseo continuar",
         "no quiero continuar",
         "ya esta",
-        "ya está",
         "finalizar",
         "terminar",
         "salir",
-        "fin"
-
+        "fin",
+        "adios",
+        "hasta luego",
+        "chau",
+        "ya no",
+        "no por ahora",
+        "todo bien",
+        "estoy bien",
+        "nada",
+        "ninguna mas"
     ];
 
-    return negativas.includes(t);
+    return negativas.some(frase => t.includes(frase));
 }
 
 // =========================
