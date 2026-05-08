@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Dios Adentro Dios Afuera</title>
+
+<link rel="stylesheet" href="/static/style.css">
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+
+        <img src="/static/logo.webp" class="logo">
+
+        <h1>DIOS ADENTRO · DIOS AFUERA</h1>
+
+        <p>
+            Espacio de orientación filosófica y espiritual
+        </p>
+
+    </div>
+
+    <!-- CHAT -->
+    <div id="chat"></div>
+
+    <!-- PANEL -->
+    <div class="panel">
+
+        <input
+            type="text"
+            id="input"
+            placeholder="Compartí aquello que deseás expresar..."
+            onkeypress="if(event.key==='Enter') enviar()"
+        >
+
+        <button onclick="enviar()">
+            Enviar
+        </button>
+
+        <img src="/static/ANA.png" class="logo">
+
+    </div>
+
+</div>
+
+<audio id="audio"></audio>
+
+<script src="/static/script.js"></script>
+
+</body>
+
+</html>
