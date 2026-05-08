@@ -1,5 +1,5 @@
-flask
-gtts
-python-dotenv
-openai
-gunicorn
+flask==3.1.0
+gtts==2.5.4
+python-dotenv==1.1.0
+openai==1.78.1
+gunicorn==23.0.0
