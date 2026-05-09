@@ -1,13 +1,10 @@
 let nombre = "";
-
 let esperandoNombre = true;
 
-let esperandoContinuacion = false;
-
 // =========================
-// UI
+// CHAT UI
 // =========================
-function agregar(tipo, texto) {
+function agregar(tipo, texto){
 
     const chat = document.getElementById("chat");
 
@@ -21,25 +18,24 @@ function agregar(tipo, texto) {
 }
 
 // =========================
-// VOZ
+// VOZ NATURAL
 // =========================
- function hablarTexto(texto) {
+function hablar(texto){
 
-    speechSynthesis.cancel();
+    return new Promise((resolve)=>{
 
-    const voz = new SpeechSynthesisUtterance(texto);
+        speechSynthesis.cancel();
 
-    voz.lang = "es-AR";
+        const voz = new SpeechSynthesisUtterance(texto);
 
-    voz.rate = 0.95;
-    voz.pitch = 1;
-    voz.volume = 1;
+        voz.lang = "es-AR";
+        voz.rate = 0.95;
+        voz.pitch = 1;
+        voz.volume = 1;
 
-    // voces más naturales
-    const voces = speechSynthesis.getVoices();
+        const voces = speechSynthesis.getVoices();
 
-    const vozNatural =
-        voces.find(v =>
+        const vozNatural = voces.find(v =>
             v.lang.includes("es") &&
             (
                 v.name.includes("Google") ||
@@ -49,100 +45,23 @@ function agregar(tipo, texto) {
             )
         );
 
-    if (vozNatural) {
-        voz.voice = vozNatural;
-    }
+        if(vozNatural){
+            voz.voice = vozNatural;
+        }
 
-    speechSynthesis.speak(voz);
-}
+        voz.onend = ()=>{
+            resolve();
+        };
 
-// =========================
-// DESPEDIDA SEGÚN HORA
-// =========================
-function despedidaHora() {
+        speechSynthesis.speak(voz);
 
-    const hora = new Date().getHours();
-
-    if (hora >= 5 && hora < 12) {
-        return "Que tengas un hermoso día.";
-    }
-
-    if (hora >= 12 && hora < 20) {
-        return "Que tengas una hermosa tarde.";
-    }
-
-    return "Que tengas una hermosa noche.";
-}
-
-// =========================
-// DETECTAR NO
-// =========================
-function esNo(texto) {
-
-    const t = texto
-        .toLowerCase()
-        .trim()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
-
-    const negativas = [
-
-        "no",
-        "no gracias",
-        "gracias no",
-        "nada mas",
-        "eso es todo",
-        "ninguna",
-        "ninguno",
-        "no tengo mas consultas",
-        "no deseo continuar",
-        "no quiero continuar",
-        "ya esta",
-        "finalizar",
-        "terminar",
-        "salir",
-        "fin",
-        "adios",
-        "hasta luego",
-        "chau",
-        "ya no",
-        "no por ahora",
-        "todo bien",
-        "estoy bien",
-        "nada",
-        "ninguna mas"
-    ];
-
-    return negativas.some(frase => t.includes(frase));
-}
-
-// =========================
-// DETECTAR SI
-// =========================
-function esSi(texto) {
-
-    const t = texto.toLowerCase().trim();
-
-    const positivos = [
-
-        "si",
-        "sí",
-        "claro",
-        "ok",
-        "dale",
-        "por supuesto",
-        "obvio",
-        "yes"
-
-    ];
-
-    return positivos.includes(t);
+    });
 }
 
 // =========================
 // BIENVENIDA
 // =========================
-window.addEventListener("load", async () => {
+window.addEventListener("load", async ()=>{
 
     const bienvenida =
         "Bienvenido al espacio de consultas de Dios adentro Dios afuera. Antes de comenzar, decime tu nombre.";
@@ -155,22 +74,24 @@ window.addEventListener("load", async () => {
 // =========================
 // ENVIAR
 // =========================
-async function enviar() {
+async function enviar(){
 
     const input = document.getElementById("input");
 
     const mensaje = input.value.trim();
 
-    if (!mensaje) return;
+    if(!mensaje) return;
 
     agregar("user", mensaje);
 
     input.value = "";
 
+    document.getElementById("acciones").style.display = "none";
+
     // =========================
     // NOMBRE
     // =========================
-    if (esperandoNombre) {
+    if(esperandoNombre){
 
         nombre = mensaje;
 
@@ -187,61 +108,23 @@ async function enviar() {
     }
 
     // =========================
-    // CONTROL CONTINUACIÓN
+    // IA
     // =========================
-    if (esperandoContinuacion === true) {
+    try{
 
-        // 🔴 TERMINAR CHAT
-        if (esNo(mensaje)) {
+        const res = await fetch("/chat",{
 
-            esperandoContinuacion = false;
+            method:"POST",
 
-            const despedida =
-                `Gracias por compartirme tus pensamientos y reflexiones. ${despedidaHora()}`;
-
-            agregar("bot", despedida);
-
-            await hablar(despedida);
-
-            return;
-        }
-
-        // 🟢 CONTINUAR CHAT
-        if (esSi(mensaje)) {
-
-            esperandoContinuacion = false;
-
-            const continuar =
-                "¿Cuál es la siguiente consulta o reflexión que deseás compartir?";
-
-            agregar("bot", continuar);
-
-            await hablar(continuar);
-
-            return;
-        }
-
-        // 🔵 SI ES OTRA PREGUNTA DIRECTA
-        esperandoContinuacion = false;
-    }
-
-    // =========================
-    // CONSULTA IA
-    // =========================
-    try {
-
-        const res = await fetch("/chat", {
-
-            method: "POST",
-
-            headers: {
-                "Content-Type": "application/json"
+            headers:{
+                "Content-Type":"application/json"
             },
 
-            body: JSON.stringify({
+            body:JSON.stringify({
                 nombre,
                 mensaje
             })
+
         });
 
         const data = await res.json();
@@ -250,20 +133,9 @@ async function enviar() {
 
         await hablar(data.response);
 
-        // =========================
-        // PREGUNTA FINAL
-        // =========================
-        const continuar =
-            "¿Te gustaría realizar otra consulta o compartir otra reflexión?";
+        document.getElementById("acciones").style.display = "flex";
 
-        agregar("bot", continuar);
-
-        await hablar(continuar);
-
-        // 🔥 ACTIVAR CONTROL
-        esperandoContinuacion = true;
-
-    } catch (e) {
+    }catch(e){
 
         console.log(e);
 
@@ -274,4 +146,46 @@ async function enviar() {
 
         await hablar(error);
     }
+}
+
+// =========================
+// OTRA CONSULTA
+// =========================
+async function otraConsulta(){
+
+    document.getElementById("acciones").style.display = "none";
+
+    const mensaje =
+        "Estoy aquí para escucharte. ¿Qué otra reflexión o inquietud deseás compartir?";
+
+    agregar("bot", mensaje);
+
+    await hablar(mensaje);
+}
+
+// =========================
+// FINALIZAR
+// =========================
+async function finalizarChat(){
+
+    document.getElementById("acciones").style.display = "none";
+
+    const hora = new Date().getHours();
+
+    let saludo = "Que tengas un hermoso día.";
+
+    if(hora >= 13 && hora < 20){
+        saludo = "Que tengas una hermosa tarde.";
+    }
+
+    if(hora >= 20 || hora < 6){
+        saludo = "Que tengas una serena noche.";
+    }
+
+    const mensaje =
+        `Gracias por compartir este espacio de contemplación. ${saludo}`;
+
+    agregar("bot", mensaje);
+
+    await hablar(mensaje);
 }
