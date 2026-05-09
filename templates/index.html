@@ -4,7 +4,6 @@
 <head>
 
 <meta charset="UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Dios Adentro Dios Afuera</title>
@@ -17,23 +16,28 @@
 
 <div class="container">
 
-    <!-- HEADER -->
     <div class="header">
 
         <img src="/static/logo.webp" class="logo">
 
-        <h1>DIOS ADENTRO · DIOS AFUERA</h1>
+        <h1>DIOS ADENTRO DIOS AFUERA</h1>
 
         <p>
-            Espacio de orientación filosófica y espiritual
+            Un espacio de contemplación, reflexión y conciencia.
         </p>
+
+        <a
+            href="https://diosadentrodiosafuera.com.ar/"
+            target="_blank"
+            class="sitio"
+        >
+            diosadentrodiosafuera.com.ar
+        </a>
 
     </div>
 
-    <!-- CHAT -->
     <div id="chat"></div>
 
-    <!-- PANEL -->
     <div class="panel">
 
         <input
@@ -47,12 +51,19 @@
             Enviar
         </button>
 
-        <img src="/static/ANA.png" class="logo">
+    </div>
+
+    <div id="acciones" class="acciones" style="display:none;">
+
+        <button onclick="otraConsulta()">
+            Otra consulta
+        </button>
+
+        <button onclick="finalizarChat()">
+            Finalizar
+        </button>
 
     </div>
-    <a href="https://diosadentrodiosafuera.com.ar/" target="_blank">
-     Entra a Dios Adentro Dios Afuera
-    </a>
 
 </div>
 
@@ -61,5 +72,4 @@
 <script src="/static/script.js"></script>
 
 </body>
-
 </html>
