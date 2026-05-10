@@ -20,6 +20,10 @@ function agregar(tipo, texto){
 // =========================
 // VOZ NATURAL
 // =========================
+ ```javascript
+// =========================
+// VOZ NATURAL FEMENINA
+// =========================
 function hablar(texto){
 
     return new Promise((resolve)=>{
@@ -30,23 +34,59 @@ function hablar(texto){
 
         voz.lang = "es-AR";
         voz.rate = 0.95;
-        voz.pitch = 1;
+        voz.pitch = 1.1; // un poco más cálida/femenina
         voz.volume = 1;
 
         const voces = speechSynthesis.getVoices();
 
-        const vozNatural = voces.find(v =>
-            v.lang.includes("es") &&
-            (
-                v.name.includes("Google") ||
-                v.name.includes("Microsoft") ||
-                v.name.includes("Sabina") ||
-                v.name.includes("Helena")
+        // 🔥 PRIORIDAD VOCES FEMENINAS
+        const vozFemenina =
+            voces.find(v =>
+                v.lang.includes("es") &&
+                (
+                    v.name.includes("Sabina") ||
+                    v.name.includes("Helena") ||
+                    v.name.includes("Paulina") ||
+                    v.name.includes("Laura") ||
+                    v.name.includes("Maria") ||
+                    v.name.includes("Monica")
+                )
             )
-        );
 
-        if(vozNatural){
-            voz.voice = vozNatural;
+            ||
+
+            // Google femenina
+            voces.find(v =>
+                v.lang.includes("es") &&
+                v.name.includes("Google") &&
+                (
+                    v.name.toLowerCase().includes("female") ||
+                    v.name.toLowerCase().includes("mujer")
+                )
+            )
+
+            ||
+
+            // Microsoft femenina
+            voces.find(v =>
+                v.lang.includes("es") &&
+                v.name.includes("Microsoft") &&
+                !v.name.includes("Male")
+            )
+
+            ||
+
+            // cualquier voz española femenina
+            voces.find(v =>
+                v.lang.includes("es") &&
+                (
+                    v.name.endsWith("a") ||
+                    v.name.includes("Female")
+                )
+            );
+
+        if(vozFemenina){
+            voz.voice = vozFemenina;
         }
 
         voz.onend = ()=>{
@@ -57,6 +97,7 @@ function hablar(texto){
 
     });
 }
+```
 
 // =========================
 // BIENVENIDA
