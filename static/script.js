@@ -1,3 +1,4 @@
+
 let nombre = "";
 let esperandoNombre = true;
 
@@ -18,7 +19,7 @@ function agregar(tipo, texto){
 }
 
 // =========================
-// ESPERAR VOCES
+// CARGAR VOCES
 // =========================
 function cargarVoces(){
 
@@ -30,11 +31,13 @@ function cargarVoces(){
 
             resolve(voces);
             return;
+
         }
 
         speechSynthesis.onvoiceschanged = ()=>{
 
             voces = speechSynthesis.getVoices();
+
             resolve(voces);
 
         };
@@ -44,7 +47,7 @@ function cargarVoces(){
 }
 
 // =========================
-// VOZ NATURAL FEMENINA
+// HABLAR
 // =========================
 async function hablar(texto){
 
@@ -52,36 +55,74 @@ async function hablar(texto){
 
         try{
 
+            // detener voz anterior
             speechSynthesis.cancel();
+
+            // pequeñas pausas naturales
+            texto = texto.replace(/\./g, ". ");
+            texto = texto.replace(/,/g, ", ");
 
             const voces = await cargarVoces();
 
             const voz = new SpeechSynthesisUtterance(texto);
 
+            // =========================
+            // CONFIGURACION NATURAL
+            // =========================
             voz.lang = "es-AR";
-            voz.rate = 0.95;
-            voz.pitch = 1.05;
+            voz.rate = 0.92;
+            voz.pitch = 1.02;
             voz.volume = 1;
 
             // =========================
-            // BUSCAR VOZ FEMENINA
+            // PRIORIZAR VOCES NATURALES
             // =========================
             const vozFemenina =
 
+                // 🔥 LA MAS NATURAL
                 voces.find(v =>
                     v.lang.includes("es") &&
-                    (
-                        v.name.includes("Sabina") ||
-                        v.name.includes("Helena") ||
-                        v.name.includes("Paulina") ||
-                        v.name.includes("Laura") ||
-                        v.name.includes("Maria") ||
-                        v.name.includes("Monica")
-                    )
+                    v.name.includes("Paulina")
                 )
 
                 ||
 
+                voces.find(v =>
+                    v.lang.includes("es") &&
+                    v.name.includes("Helena")
+                )
+
+                ||
+
+                voces.find(v =>
+                    v.lang.includes("es") &&
+                    v.name.includes("Sabina")
+                )
+
+                ||
+
+                voces.find(v =>
+                    v.lang.includes("es") &&
+                    v.name.includes("Laura")
+                )
+
+                ||
+
+                voces.find(v =>
+                    v.lang.includes("es") &&
+                    v.name.includes("Monica")
+                )
+
+                ||
+
+                voces.find(v =>
+                    v.lang.includes("es") &&
+                    v.name.includes("Maria")
+                )
+
+                ||
+
+                // Google
                 voces.find(v =>
                     v.lang.includes("es") &&
                     v.name.includes("Google")
@@ -89,6 +130,7 @@ async function hablar(texto){
 
                 ||
 
+                // Microsoft
                 voces.find(v =>
                     v.lang.includes("es") &&
                     v.name.includes("Microsoft")
@@ -96,18 +138,28 @@ async function hablar(texto){
 
                 ||
 
+                // cualquier española
                 voces.find(v =>
                     v.lang.includes("es")
                 );
 
+            // =========================
+            // APLICAR VOZ
+            // =========================
             if(vozFemenina){
 
-                console.log("VOZ:", vozFemenina.name);
+                console.log("================================");
+                console.log("VOZ SELECCIONADA:");
+                console.log(vozFemenina.name);
+                console.log("================================");
 
                 voz.voice = vozFemenina;
 
             }
 
+            // =========================
+            // EVENTOS
+            // =========================
             voz.onend = ()=>{
 
                 resolve();
@@ -122,6 +174,9 @@ async function hablar(texto){
 
             };
 
+            // =========================
+            // HABLAR
+            // =========================
             speechSynthesis.speak(voz);
 
         }catch(e){
@@ -168,7 +223,7 @@ async function enviar(){
     document.getElementById("acciones").style.display = "none";
 
     // =========================
-    // NOMBRE
+    // PRIMERA INTERACCION
     // =========================
     if(esperandoNombre){
 
@@ -184,10 +239,11 @@ async function enviar(){
         await hablar(saludo);
 
         return;
+
     }
 
     // =========================
-    // IA
+    // CONSULTA IA
     // =========================
     try{
 
@@ -219,9 +275,6 @@ async function enviar(){
 
         console.log("RESPUESTA IA:", data);
 
-        // =========================
-        // VALIDAR TEXTO
-        // =========================
         if(!data.response){
 
             throw new Error("RESPUESTA VACIA");
@@ -266,7 +319,7 @@ async function otraConsulta(){
 }
 
 // =========================
-// FINALIZAR
+// FINALIZAR CHAT
 // =========================
 async function finalizarChat(){
 
@@ -296,3 +349,4 @@ async function finalizarChat(){
     await hablar(mensaje);
 
 }
+```
