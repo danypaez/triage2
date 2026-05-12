@@ -95,6 +95,56 @@ def cerrar_respuesta(texto):
     return texto + "..."
 
 # =========================================================
+# ELIMINAR SALUDOS REPETIDOS
+# =========================================================
+def eliminar_saludo(texto, primera_interaccion=False):
+
+    # si es la primera interacción, permitir saludo
+    if primera_interaccion:
+        return texto
+
+    saludos = [
+
+        r"^hola[,:\s]*",
+        r"^hola\s+[a-zA-ZáéíóúÁÉÍÓÚñÑ]+[,:\s]*",
+        r"^buenas[,:\s]*",
+        r"^buenos días[,:\s]*",
+        r"^buen día[,:\s]*",
+        r"^buenas tardes[,:\s]*",
+        r"^buenas noches[,:\s]*",
+        r"^querido[a]?[,:\s]*",
+        r"^estimado[a]?[,:\s]*"
+
+    ]
+
+    texto_original = texto
+
+    texto = texto.strip()
+
+    for patron in saludos:
+
+        texto = re.sub(
+            patron,
+            "",
+            texto,
+            flags=re.IGNORECASE
+        )
+
+    texto = texto.strip()
+
+    # capitalizar primera letra
+    if texto:
+
+        texto = texto[0].upper() + texto[1:]
+
+    # evitar devolver vacío
+    if len(texto) < 5:
+
+        return texto_original
+
+    return texto
+
+# =========================================================
 # PROMPT MASTER
 # =========================================================
 PROMPT_MASTER = """
@@ -113,106 +163,72 @@ II. MARCO FILOSÓFICO Y ONTOLÓGICO
 1. No-dualidad (Advaita):
 Operas bajo la premisa de que "Unidad y Multiplicidad son un mismo SER".
 
-Sostienes que la separación entre perceptor y percibido es parte de un "Juego de la Conciencia" (Lilah) para que pueda surgir el Amor.
-
 2. Panenteísmo:
-Sostienes que Dios (el Fundamento Último) está en todas las cosas (inmanencia) pero también las sobrepasa (trascendencia).
-
-El universo es el "cuerpo de Dios" o un "sistema de pensamientos vestidos de materia".
+Dios está en todas las cosas y también las trasciende.
 
 3. Causalidad vs. Azar:
-Rechazas explícitamente el azar.
-
-Para ti, todo lo que acontece es un "mensaje del Universo" o la "Mano de Dios" que provee lo que el alma necesita para su evolución, no lo que el ego desea.
+Nada ocurre al azar; todo posee sentido evolutivo.
 
 4. Ciencia y Mística:
-Integras ambas.
-
-La ciencia estudia el cómo (leyes mecánicas) y la mística el porqué (sentido y propósito).
+La ciencia estudia el cómo y la mística el porqué.
 
 III. VISIÓN ANTROPOLÓGICA
 
-• El usuario no es su cuerpo ni su ego psicofísico.
+• El usuario no es solo cuerpo ni ego.
 
-• Su esencia es el Yo Grande o Testigo.
+• Su esencia es Conciencia.
 
-• El ser humano es un co-creador.
-
-• Su libertad es la facultad de florecer en su propia esencia.
+• El ser humano es co-creador.
 
 • No actúes como autoridad externa.
 
-• Ninguna respuesta fundamental será dada desde afuera.
+• El usuario posee dentro de sí las respuestas esenciales.
 
-• El usuario ya posee en su interior las respuestas esenciales.
+IV. RESPUESTAS
 
-IV. ESTRATEGIAS DE RESPUESTA
+• Reconoce el sufrimiento sin negar el dolor.
 
-• Ante el sufrimiento:
-Reconoce el dolor humano, pero oriéntalo hacia el aprendizaje interior.
+• Invita siempre a la introspección consciente.
 
-• Ante la muerte:
-Descríbela como una gran Maestra que enseña a vivir plenamente el presente.
+• Usa metáforas y reflexión profunda.
 
-• Ante la ansiedad y el miedo:
-Invita a observar la emoción desde el "YO SOY".
+V. TONO
 
-• Ante el mal:
-Explica que toda percepción surge desde una visión parcial de la Totalidad.
+• Poético
+• Sereno
+• Pedagógico
+• Reflexivo
 
-V. LENGUAJE Y TONO
-
-• Usa vocabulario como:
+• Usa términos como:
 "Presencia Consciente Activa",
 "terminales de la Conciencia",
-"deshipnotizarse",
-"locus de revelación",
-"hipervivencia de lo real",
-"monismo espiritual".
+"deshipnotizarse".
 
-• El tono debe ser:
-Pedagógico,
-poético,
-profundamente reflexivo,
-sereno,
-empoderador.
-
-• Usa paradojas y metáforas como:
-"el océano y la gota",
-"el espejo",
-"Somos Uno y somos muchos".
-
-• Evita respuestas extremadamente largas.
-
-• Finaliza siempre las ideas y frases de manera completa.
+• NO saludes continuamente.
+• Solo puedes saludar al comienzo de la primera interacción.
+• En respuestas posteriores continúa naturalmente la conversación.
+• Nunca empieces cada respuesta con "Hola".
 
 VI. RESTRICCIONES
 
-• No caer en materialismo reduccionista.
-
-• No utilizar dogmatismo religioso tradicional.
-
-• No promover fórmulas mágicas.
-
-• Nunca fomentar el papel de víctima.
-
-• Nunca responder agresivamente.
-
-• Nunca dejar frases inconclusas.
-
-• Responde en español claro, humano y natural.
+• No dogmatismo religioso.
+• No materialismo reduccionista.
+• No agresividad.
+• No frases inconclusas.
+• No validar victimización.
 """
 
 # =========================================================
 # RESPONDER
 # =========================================================
-def responder(nombre, mensaje):
+def responder(nombre, mensaje, primera_interaccion=False):
 
     print("===================================")
     print("NUEVA CONSULTA")
     print("===================================")
     print("NOMBRE:", nombre)
     print("MENSAJE:", mensaje)
+    print("PRIMERA_INTERACCION:", primera_interaccion)
 
     if client is None:
 
@@ -221,17 +237,18 @@ def responder(nombre, mensaje):
         return fallback()
 
     # =========================================================
-    # PROMPT FINAL
+    # PROMPT USUARIO
     # =========================================================
     prompt_usuario = f"""
 
 Nombre del usuario:
 {nombre}
 
-Consulta del usuario:
+Consulta:
 {mensaje}
 
-Responde siguiendo fielmente el marco filosófico indicado.
+IMPORTANTE:
+{"Esta es la primera interacción. Puedes saludar brevemente." if primera_interaccion else "NO saludes. Continúa la conversación naturalmente."}
 """
 
     try:
@@ -274,9 +291,17 @@ Responde siguiendo fielmente el marco filosófico indicado.
         print("FINISH_REASON:", finish_reason)
 
         # =========================================================
-        # LIMPIAR TEXTO
+        # LIMPIAR
         # =========================================================
         texto = limpiar_texto(texto)
+
+        # =========================================================
+        # ELIMINAR SALUDO SI NO ES PRIMERA VEZ
+        # =========================================================
+        texto = eliminar_saludo(
+            texto,
+            primera_interaccion
+        )
 
         # =========================================================
         # SI FUE TRUNCADO
@@ -297,9 +322,6 @@ Responde siguiendo fielmente el marco filosófico indicado.
         print("===================================")
         print(texto)
 
-        # =========================================================
-        # VALIDACION MINIMA
-        # =========================================================
         if len(texto) < 5:
 
             print("⚠️ RESPUESTA INVALIDA")
