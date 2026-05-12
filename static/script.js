@@ -18,86 +18,123 @@ function agregar(tipo, texto){
 }
 
 // =========================
-// VOZ NATURAL
+// ESPERAR VOCES
 // =========================
- ```javascript
-// =========================
-// VOZ NATURAL FEMENINA
-// =========================
-function hablar(texto){
+function cargarVoces(){
 
     return new Promise((resolve)=>{
 
-        speechSynthesis.cancel();
+        let voces = speechSynthesis.getVoices();
 
-        const voz = new SpeechSynthesisUtterance(texto);
+        if(voces.length){
 
-        voz.lang = "es-AR";
-        voz.rate = 0.95;
-        voz.pitch = 1.1; // un poco más cálida/femenina
-        voz.volume = 1;
-
-        const voces = speechSynthesis.getVoices();
-
-        // 🔥 PRIORIDAD VOCES FEMENINAS
-        const vozFemenina =
-            voces.find(v =>
-                v.lang.includes("es") &&
-                (
-                    v.name.includes("Sabina") ||
-                    v.name.includes("Helena") ||
-                    v.name.includes("Paulina") ||
-                    v.name.includes("Laura") ||
-                    v.name.includes("Maria") ||
-                    v.name.includes("Monica")
-                )
-            )
-
-            ||
-
-            // Google femenina
-            voces.find(v =>
-                v.lang.includes("es") &&
-                v.name.includes("Google") &&
-                (
-                    v.name.toLowerCase().includes("female") ||
-                    v.name.toLowerCase().includes("mujer")
-                )
-            )
-
-            ||
-
-            // Microsoft femenina
-            voces.find(v =>
-                v.lang.includes("es") &&
-                v.name.includes("Microsoft") &&
-                !v.name.includes("Male")
-            )
-
-            ||
-
-            // cualquier voz española femenina
-            voces.find(v =>
-                v.lang.includes("es") &&
-                (
-                    v.name.endsWith("a") ||
-                    v.name.includes("Female")
-                )
-            );
-
-        if(vozFemenina){
-            voz.voice = vozFemenina;
+            resolve(voces);
+            return;
         }
 
-        voz.onend = ()=>{
-            resolve();
+        speechSynthesis.onvoiceschanged = ()=>{
+
+            voces = speechSynthesis.getVoices();
+            resolve(voces);
+
         };
 
-        speechSynthesis.speak(voz);
+    });
+
+}
+
+// =========================
+// VOZ NATURAL FEMENINA
+// =========================
+async function hablar(texto){
+
+    return new Promise(async (resolve)=>{
+
+        try{
+
+            speechSynthesis.cancel();
+
+            const voces = await cargarVoces();
+
+            const voz = new SpeechSynthesisUtterance(texto);
+
+            voz.lang = "es-AR";
+            voz.rate = 0.95;
+            voz.pitch = 1.05;
+            voz.volume = 1;
+
+            // =========================
+            // BUSCAR VOZ FEMENINA
+            // =========================
+            const vozFemenina =
+
+                voces.find(v =>
+                    v.lang.includes("es") &&
+                    (
+                        v.name.includes("Sabina") ||
+                        v.name.includes("Helena") ||
+                        v.name.includes("Paulina") ||
+                        v.name.includes("Laura") ||
+                        v.name.includes("Maria") ||
+                        v.name.includes("Monica")
+                    )
+                )
+
+                ||
+
+                voces.find(v =>
+                    v.lang.includes("es") &&
+                    v.name.includes("Google")
+                )
+
+                ||
+
+                voces.find(v =>
+                    v.lang.includes("es") &&
+                    v.name.includes("Microsoft")
+                )
+
+                ||
+
+                voces.find(v =>
+                    v.lang.includes("es")
+                );
+
+            if(vozFemenina){
+
+                console.log("VOZ:", vozFemenina.name);
+
+                voz.voice = vozFemenina;
+
+            }
+
+            voz.onend = ()=>{
+
+                resolve();
+
+            };
+
+            voz.onerror = (e)=>{
+
+                console.log("ERROR VOZ:", e);
+
+                resolve();
+
+            };
+
+            speechSynthesis.speak(voz);
+
+        }catch(e){
+
+            console.log("ERROR HABLAR:", e);
+
+            resolve();
+
+        }
 
     });
+
 }
-```
 
 // =========================
 // BIENVENIDA
@@ -110,6 +147,7 @@ window.addEventListener("load", async ()=>{
     agregar("bot", bienvenida);
 
     await hablar(bienvenida);
+
 });
 
 // =========================
@@ -153,7 +191,7 @@ async function enviar(){
     // =========================
     try{
 
-        const res = await fetch("/chat",{
+        const res = await fetch("/chat", {
 
             method:"POST",
 
@@ -161,14 +199,34 @@ async function enviar(){
                 "Content-Type":"application/json"
             },
 
-            body:JSON.stringify({
+            body: JSON.stringify({
                 nombre,
                 mensaje
             })
 
         });
 
+        // =========================
+        // VALIDAR RESPUESTA
+        // =========================
+        if(!res.ok){
+
+            throw new Error("ERROR SERVIDOR");
+
+        }
+
         const data = await res.json();
+
+        console.log("RESPUESTA IA:", data);
+
+        // =========================
+        // VALIDAR TEXTO
+        // =========================
+        if(!data.response){
+
+            throw new Error("RESPUESTA VACIA");
+
+        }
 
         agregar("bot", data.response);
 
@@ -178,7 +236,7 @@ async function enviar(){
 
     }catch(e){
 
-        console.log(e);
+        console.log("ERROR GENERAL:", e);
 
         const error =
             "En este momento no logro conectar con la reflexión universal.";
@@ -186,7 +244,9 @@ async function enviar(){
         agregar("bot", error);
 
         await hablar(error);
+
     }
+
 }
 
 // =========================
@@ -202,6 +262,7 @@ async function otraConsulta(){
     agregar("bot", mensaje);
 
     await hablar(mensaje);
+
 }
 
 // =========================
@@ -216,11 +277,15 @@ async function finalizarChat(){
     let saludo = "Que tengas un hermoso día.";
 
     if(hora >= 13 && hora < 20){
+
         saludo = "Que tengas una hermosa tarde.";
+
     }
 
     if(hora >= 20 || hora < 6){
+
         saludo = "Que tengas una serena noche.";
+
     }
 
     const mensaje =
@@ -229,4 +294,5 @@ async function finalizarChat(){
     agregar("bot", mensaje);
 
     await hablar(mensaje);
+
 }
