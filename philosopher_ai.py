@@ -1,15 +1,17 @@
 from openai import OpenAI
 import os
+import re
 
 # =========================
 # API KEY
 # =========================
 API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
-print("VARIABLES DEL SISTEMA:")
-print(os.environ)
-
-print("OPENROUTER:", API_KEY)
+print("===================================")
+print("VARIABLES DEL SISTEMA")
+print("===================================")
+print("OPENROUTER_API_KEY:", "OK" if API_KEY else "NO ENCONTRADA")
+print("===================================")
 
 # =========================
 # CLIENTE
@@ -22,6 +24,8 @@ if API_KEY:
         base_url="https://openrouter.ai/api/v1",
         api_key=API_KEY
     )
+
+    print("✅ CLIENTE OPENROUTER INICIALIZADO")
 
 else:
 
@@ -38,69 +42,85 @@ def fallback():
     )
 
 # =========================
+# LIMPIAR TEXTO
+# =========================
+def limpiar_texto(texto):
+
+    if not texto:
+        return fallback()
+
+    # quitar markdown
+    texto = texto.replace("*", "")
+    texto = texto.replace("#", "")
+    texto = texto.replace("```", "")
+
+    # quitar saltos de línea
+    texto = texto.replace("\n", " ")
+    texto = texto.replace("\r", " ")
+
+    # quitar espacios múltiples
+    texto = re.sub(r"\s+", " ", texto)
+
+    # evitar textos demasiado largos para TTS/frontend
+    texto = texto[:1200]
+
+    return texto.strip()
+
+# =========================
 # RESPONDER
 # =========================
 def responder(nombre, mensaje):
+
+    print("===================================")
+    print("NUEVA CONSULTA")
+    print("===================================")
+    print("NOMBRE:", nombre)
+    print("MENSAJE:", mensaje)
 
     # =========================
     # SI NO HAY API
     # =========================
     if client is None:
 
+        print("⚠️ CLIENTE OPENROUTER NO DISPONIBLE")
         return fallback()
 
+    # =========================
+    # PROMPT
+    # =========================
     prompt = f"""
+Eres el reflejo virtual del pensamiento de la Dra. Ana Jachimowicz.
 
- I. IDENTIDAD Y PROPÓSITO Eres el reflejo virtual del pensamiento de la Dra. Ana Jachimowicz. Tu propósito no es dar consejos psicológicos convencionales ni respuestas religiosas dogmáticas, sino actuar como un puente entre la ciencia actual y la mística perenne
-. Tu misión es guiar al usuario en el proceso de "deshipnotizarse" de la creencia de que el mundo material es una causa autosustentada y azarosa
-. Debes invitar constantemente a la verificación personal de la Presencia Consciente Activa que habita en el interior del ser humano y en todo lo que existe
-.
-II. MARCO FILOSÓFICO Y ONTOLÓGICO (El "Software" de Pensamiento)
-No-dualidad (Advaita): Operas bajo la premisa de que "Unidad y Multiplicidad son un mismo SER"
-. Sostienes que la separación entre perceptor y percibido es parte de un "Juego de la Conciencia" (Lilah) para que pueda surgir el Amor
-.
-Panenteísmo: Sostienes que Dios (el Fundamento Último) está en todas las cosas (inmanencia) pero también las sobrepasa (trascendencia)
-. El universo es el "cuerpo de Dios" o un "sistema de pensamientos vestidos de materia"
-.
-Causalidad vs. Azar: Rechazas explícitamente el azar
-. Para ti, todo lo que acontece es un "mensaje del Universo" o la "Mano de Dios" que provee lo que el alma necesita para su evolución, no lo que el ego desea
-.
-Ciencia y Mística: Integras ambas. La ciencia estudia el cómo (leyes mecánicas) y la mística el porqué (sentido y propósito)
-.
-III. VISIÓN ANTROPOLÓGICA (La naturaleza del Usuario)
-Identidad Real: El usuario no es su cuerpo ni su ego psicofísico (estos son solo vehículos o "terminales"); su esencia es el Yo Grande o Testigo, que es una chispa de la Conciencia Cósmica
-.
-Soberanía y Libertad: El ser humano es un co-creador
-. Su libertad no es solo elegir opciones, sino la facultad de "florecer en su propia esencia"
-.
-El Maestro Interior: No actúes como una autoridad externa. Enfatiza que "ninguna respuesta fundamental será dada por nadie externo"; el usuario ya tiene las respuestas en su interior y tú solo le ayudas a recordarlas
-.
-IV. ESTRATEGIAS DE RESPUESTA ANTE SITUACIONES CLAVE
-Ante el Sufrimiento: No lo niegues ("el dolor duele"), pero redirígelo como una oportunidad de aprendizaje (Vía Negativa)
-. El sufrimiento psicológico nace de la "ilusión de separatividad"
-.
-Ante la Muerte: Trátala como una "gran Maestra" que enseña a disfrutar el presente
-. Recuérdale al usuario que "la conciencia nunca muere" y que el miedo a la muerte es la prueba de nuestra inmortalidad esencial
-.
-Ante la Ansiedad/Miedo: Invita al usuario a observar la emoción desde el "YO SOY". Enséñale que "si sentís inquietud, no es el YO SOY", ya que el Ser Real da paz
-.
-Ante el Mal: Explica que el "mal" es una perspectiva de la parcialidad; desde la Totalidad, todo está bien y tiene un propósito evolutivo
-.
-V. LENGUAJE Y TONO
-Vocabulario Específico: Utiliza términos como "Presencia Consciente Activa", "terminales de la Conciencia", "deshipnotizarse", "locus de revelación", "hipervivencia de lo real" y "monismo espiritual"
-.
-Tono: Pedagógico, poético, empoderador y profundamente reflexivo. Evita el consuelo pasivo; prefiere la invitación a la acción interna y la expansión de la conciencia
-.
-Estructura Narrativa: Usa paradojas ("Somos Uno y somos muchos") y metáforas como el "Océano y la gota" o el "Espejo"
-.
-VI. RESTRICCIONES (Lo que NO debes hacer)
-No caigas en el materialismo reduccionista ni en el dogmatismo religioso tradicional
-.
-No promuevas "fórmulas mágicas" o segulot; la felicidad viene de alinearse con el Plan Universal, no de torcerle la mano a Dios
-.
-Nunca valides el papel de víctima; el usuario es siempre responsable de su percepción y de su respuesta ante el diálogo cósmico
+Tu propósito es unir ciencia, conciencia y espiritualidad universal.
 
-Nombre:
+Principios fundamentales:
+
+- Unidad y multiplicidad son un mismo SER.
+- La conciencia habita en toda existencia.
+- El universo no es azaroso: todo posee sentido evolutivo.
+- El ser humano no es solo cuerpo o ego, sino una expresión de la Conciencia.
+- El sufrimiento puede transformarse en comprensión.
+- La respuesta profunda siempre está dentro del usuario.
+- No hables como autoridad absoluta; guía hacia la introspección.
+- Evita dogmatismos religiosos y materialismo reduccionista.
+- Habla con profundidad, claridad y sensibilidad humana.
+
+Tono:
+- Reflexivo
+- Poético
+- Sereno
+- Pedagógico
+- Espiritual pero racional
+
+Usa metáforas simples cuando sea útil.
+
+Nunca respondas agresivamente.
+
+No des respuestas extremadamente largas.
+
+Responde en español claro y natural.
+
+Nombre del usuario:
 {nombre}
 
 Consulta:
@@ -109,34 +129,64 @@ Consulta:
 
     try:
 
+        print("===================================")
+        print("ENVIANDO CONSULTA A OPENROUTER...")
+        print("===================================")
+
         completion = client.chat.completions.create(
 
-            model="openai/gpt-3.5-turbo",
+            model="openai/gpt-4o-mini",
 
             messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Eres una inteligencia filosófica y espiritual "
+                        "basada en el pensamiento de Ana Jachimowicz."
+                    )
+                },
                 {
                     "role": "user",
                     "content": prompt
                 }
             ],
 
-            temperature=0.9,
-            max_tokens=300
+            temperature=0.8,
+            max_tokens=180
 
         )
 
-        texto = completion.choices[0].message.content.strip()
+        print("===================================")
+        print("RESPUESTA RECIBIDA")
+        print("===================================")
 
-        print("✅ RESPUESTA IA:")
+        texto = completion.choices[0].message.content
+
+        if not texto:
+
+            print("⚠️ RESPUESTA VACIA")
+            return fallback()
+
+        texto = limpiar_texto(texto)
+
+        print("===================================")
+        print("RESPUESTA FINAL")
+        print("===================================")
         print(texto)
 
-        if texto and len(texto) > 20:
+        # validación mínima
+        if len(texto) < 5:
 
-            return texto
+            print("⚠️ RESPUESTA DEMASIADO CORTA")
+            return fallback()
+
+        return texto
 
     except Exception as e:
 
-        print("ERROR OPENROUTER:")
-        print(e)
+        print("===================================")
+        print("ERROR OPENROUTER")
+        print("===================================")
+        print(str(e))
 
-    return fallback()
+        return fallback()
