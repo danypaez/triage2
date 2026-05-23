@@ -15,6 +15,56 @@ function agregar(tipo, texto){
     `;
 
     chat.scrollTop = chat.scrollHeight;
+
+}
+
+// =========================================================
+// CARGAR VOCES
+// =========================================================
+async function cargarVoces(){
+
+    return new Promise((resolve)=>{
+
+        let voces = speechSynthesis.getVoices();
+
+        // ya cargadas
+        if(voces.length > 0){
+
+            resolve(voces);
+            return;
+
+        }
+
+        // esperar carga real
+        let intentos = 0;
+
+        const intervalo = setInterval(()=>{
+
+            voces = speechSynthesis.getVoices();
+
+            if(voces.length > 0){
+
+                clearInterval(intervalo);
+
+                resolve(voces);
+
+            }
+
+            intentos++;
+
+            // timeout
+            if(intentos > 20){
+
+                clearInterval(intervalo);
+
+                resolve(voces);
+
+            }
+
+        }, 250);
+
+    });
+
 }
 
 // =========================================================
@@ -24,32 +74,104 @@ async function hablar(texto){
 
     try{
 
+        // detener voz previa
         speechSynthesis.cancel();
+
+        // cargar voces correctamente
+        const voces = await cargarVoces();
+
+        console.log("VOCES DISPONIBLES:", voces);
 
         const voz = new SpeechSynthesisUtterance(texto);
 
+        // =====================================================
+        // CONFIG
+        // =====================================================
         voz.lang = "es-AR";
-        voz.rate = 0.95;
+        voz.rate = 0.93;
         voz.pitch = 1;
         voz.volume = 1;
 
-        const voces = speechSynthesis.getVoices();
+        // =====================================================
+        // BUSCAR MEJOR VOZ
+        // =====================================================
+        const vozEspanol =
 
-        const vozEspanol = voces.find(v =>
-            v.lang.includes("es")
-        );
+            voces.find(v =>
+                v.lang.includes("es") &&
+                v.name.includes("Paulina")
+            )
 
+            ||
+
+            voces.find(v =>
+                v.lang.includes("es") &&
+                v.name.includes("Helena")
+            )
+
+            ||
+
+            voces.find(v =>
+                v.lang.includes("es") &&
+                v.name.includes("Laura")
+            )
+
+            ||
+
+            voces.find(v =>
+                v.lang.includes("es") &&
+                v.name.includes("Google")
+            )
+
+            ||
+
+            voces.find(v =>
+                v.lang.includes("es")
+            );
+
+        // =====================================================
+        // APLICAR VOZ
+        // =====================================================
         if(vozEspanol){
+
+            console.log("================================");
+            console.log("VOZ SELECCIONADA:");
+            console.log(vozEspanol.name);
+            console.log("================================");
 
             voz.voice = vozEspanol;
 
         }
 
+        // =====================================================
+        // EVENTOS
+        // =====================================================
+        voz.onstart = ()=>{
+
+            console.log("INICIO VOZ");
+
+        };
+
+        voz.onend = ()=>{
+
+            console.log("FIN VOZ");
+
+        };
+
+        voz.onerror = (e)=>{
+
+            console.log("ERROR VOZ:", e);
+
+        };
+
+        // =====================================================
+        // HABLAR
+        // =====================================================
         speechSynthesis.speak(voz);
 
     }catch(e){
 
-        console.log("ERROR VOZ:", e);
+        console.log("ERROR GENERAL VOZ:", e);
 
     }
 
@@ -107,6 +229,8 @@ async function enviar(){
     // =====================================================
     try{
 
+        console.log("ENVIANDO A /chat");
+
         const res = await fetch("/chat", {
 
             method: "POST",
@@ -122,6 +246,8 @@ async function enviar(){
 
         });
 
+        console.log("STATUS:", res.status);
+
         if(!res.ok){
 
             throw new Error("ERROR SERVIDOR");
@@ -130,7 +256,14 @@ async function enviar(){
 
         const data = await res.json();
 
-        console.log(data);
+        console.log("RESPUESTA:", data);
+
+        // validar
+        if(!data.response){
+
+            throw new Error("RESPUESTA VACIA");
+
+        }
 
         agregar("bot", data.response);
 
@@ -138,7 +271,7 @@ async function enviar(){
 
     }catch(e){
 
-        console.log("ERROR:", e);
+        console.log("ERROR FETCH:", e);
 
         const error =
             "En este momento no logro conectar con la reflexión universal.";
